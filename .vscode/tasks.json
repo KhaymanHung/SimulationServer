@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Maven: clean package",
+            "type": "shell",
+            "command": "mvn clean package -DskipTests",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Maven: spring-boot:run",
+            "type": "shell",
+            "command": "mvn spring-boot:run",
+            "problemMatcher": [],
+            "isBackground": false
+        }
+    ]
+}

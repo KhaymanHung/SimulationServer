@@ -245,6 +245,14 @@ public class APISlotHitHopPanda {
                 }
             }
 
+            if ((int)Math.floor(Math.random() * 100) < 5) {
+                // 5%機率出現百搭圖標，但如果隨機到的位置是炸彈，則不放百搭
+                int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
+                if (rl.get(wildPos) != 2) {
+                    rl.set(wildPos, 0);
+                }
+            }
+
             // 隨機產生得獎後加倍圖標，限定在3~12 之間
             List<Integer> allSymList = new ArrayList<>(Arrays.asList(3,4,5,6,7,8,9,10,11,12));
             for (int i = 0; i < 5; i++) {
@@ -308,6 +316,14 @@ public class APISlotHitHopPanda {
                         // 盤面沒有炸彈圖標時，補上的圖標範圍為2-12之間
                         rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 11) + 2));
                     }
+                }
+            }
+
+            if ((int)Math.floor(Math.random() * 100) < 5) {
+                // 5%機率出現百搭圖標，但如果隨機到的位置是炸彈，則不放百搭
+                int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
+                if (rl.get(wildPos) != 2) {
+                    rl.set(wildPos, 0);
                 }
             }
 
@@ -499,11 +515,17 @@ public class APISlotHitHopPanda {
             // 有消除圖標時，就不處理炸彈圖標邏輯
             if (wp != null) {
                 ewp = new ArrayList<>();
-                for (int i = 0; i < rl.size(); i++) {
-                    if (ws != null && ws.contains(rl.get(i))) {
-                        ewp.add(i);
+                for (int i = 0; i < wp.size(); i++) {
+                    List<Integer> posList = (List<Integer>)wp.get((i + 1) + "");
+                    if (posList != null && !posList.isEmpty()) {
+                        for (int j = 0; j < posList.size(); j++) {
+                            if (!ewp.contains(posList.get(j))) {
+                                ewp.add(posList.get(j));
+                            }
+                        }
                     }
                 }
+                
                 // 排序ewp值，方便後續處理
                 Collections.sort(ewp);
             } else {
@@ -596,14 +618,14 @@ public class APISlotHitHopPanda {
             }
         }
 
-        double np = BigDecimalUtil.subtract(tw, tb);                                        // 此輪淨利潤(得獎-押注)，可能為負數
+        double np = BigDecimalUtil.subtract(tw, tb);                    // 此輪淨利潤(得獎-押注)，可能為負數
         double blb = BigDecimalUtil.divide(this.userMoney, 100, 2);   // 押注前餘額
-        double blab = BigDecimalUtil.subtract(blb, tb);                                     // 押注後餘額
-        double bl = BigDecimalUtil.add(blb, np);                                            // 得獎後餘額
+        double blab = BigDecimalUtil.subtract(blb, tb);                 // 押注後餘額
+        double bl = BigDecimalUtil.add(blb, np);                        // 得獎後餘額
         
         double ctw = tw;    // 此回合得獎金額
         double ptw = 0.0;   // 前一輪時總得獎金額
-        double aw = tw;    // 累計得獎金額
+        double aw = tw;     // 累計得獎金額
         if (index > 0) {
             double previousAw = 0;
             if (previousSi != null) {
@@ -729,7 +751,10 @@ public class APISlotHitHopPanda {
             linkPos.add(i);
             checkLink(rl, i, linkPos); // 呼叫私有方法
 
-            // 若需要把 linkPos 加入 winList，可在此處處理
+            // 把linkPos排序
+            Collections.sort(linkPos);
+
+            // 把 linkPos 加入 winList
             if (linkPos.size() >= 3) {
                 winList.put(checkSym, linkPos);
             }
@@ -741,7 +766,7 @@ public class APISlotHitHopPanda {
     private void checkLink(List<Integer> rl, int pos, List<Integer> linkPos) {
         int[] neighbors = linkList[pos];
         for (int nb : neighbors) {
-            if (rl.get(nb).equals(rl.get(pos)) && !linkPos.contains(nb)) {
+            if ((rl.get(nb).equals(rl.get(pos)) || rl.get(nb).equals(0)) && !linkPos.contains(nb)) {
                 linkPos.add(nb);
                 checkLink(rl, nb, linkPos);
             }

@@ -433,6 +433,11 @@ public class APISlotHitHopPanda {
             }
             if (previousNbmd != null && previousNbmd.size() == 5) {
                 obmd = new ArrayList<>(previousNbmd);
+            } else {
+                if (previousBm != null) {
+                    List<Integer> previousObmd = (List<Integer>)previousBm.get("obmd");
+                    obmd = (new ArrayList<>(previousObmd));
+                }
             }
         }
 

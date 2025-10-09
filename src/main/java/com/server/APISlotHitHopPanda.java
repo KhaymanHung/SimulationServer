@@ -235,21 +235,29 @@ public class APISlotHitHopPanda {
         if (index == 0) {
             // 產生隨機盤面，範圍為0-12，0 百搭，1 免費遊戲，2 炸彈，3-12 一般圖標
             for (int i = 0; i < 9; i++) {
-                // rl.add((int)Math.floor((Math.random() * 10) + 3));
-                if (rl.contains(2)) {
-                    // 盤面有炸彈圖標時，出現的圖標範圍為3~12之間
-                    rl.add((int)Math.floor((Math.random() * 10) + 3));
-                } else {
-                    // 盤面沒有炸彈圖標時，出現的圖標範圍為2-12之間
-                    rl.add((int)Math.floor((Math.random() * 11) + 2));
-                }
+                rl.add((int)Math.floor((Math.random() * 10) + 3));
+                // if (rl.contains(2)) {
+                //     // 盤面有炸彈圖標時，出現的圖標範圍為3~12之間
+                //     rl.add((int)Math.floor((Math.random() * 10) + 3));
+                // } else {
+                //     // 盤面沒有炸彈圖標時，出現的圖標範圍為2-12之間
+                //     rl.add((int)Math.floor((Math.random() * 11) + 2));
+                // }
             }
 
-            if ((int)Math.floor(Math.random() * 100) < 5) {
-                // 5%機率出現百搭圖標，但如果隨機到的位置是炸彈，則不放百搭
-                int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
-                if (rl.get(wildPos) != 2) {
-                    rl.set(wildPos, 0);
+            for (int i = 0; i < 3; i++) {
+                // 免費遊戲部份邏輯尚未完成，暫時不放免費遊戲圖標
+                if (i == 1) {
+                    continue;
+                }
+
+                // 百搭、免費遊戲、炸彈各有1%機率出現，如果隨機到的位置是其它特殊圖標，則不放
+                // 測試暫時提高機率為30%
+                if ((int)Math.floor(Math.random() * 100) < 30) {
+                    int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
+                    if (rl.get(wildPos) != 0 && rl.get(wildPos) != 1 && rl.get(wildPos) != 2) {
+                        rl.set(wildPos, i);
+                    }
                 }
             }
 
@@ -307,23 +315,41 @@ public class APISlotHitHopPanda {
                         }
                     }
                     rl.set((i - (i % 3)), -1); // 標記最上方位置需要補上新圖標
-                    // 最上方補上新的隨機圖標
-                    // rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
-                    if (rl.contains(2)) {
-                        // 盤面有炸彈圖標時，補上的圖標範圍為3~12之間
-                        rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
-                    } else {
-                        // 盤面沒有炸彈圖標時，補上的圖標範圍為2-12之間
-                        rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 11) + 2));
-                    }
+                    // if (rl.contains(2)) {
+                    //     // 盤面有炸彈圖標時，補上的圖標範圍為3~12之間
+                    //     rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
+                    // } else {
+                    //     // 盤面沒有炸彈圖標時，補上的圖標範圍為2-12之間
+                    //     rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 11) + 2));
+                    // }
                 }
             }
 
-            if ((int)Math.floor(Math.random() * 100) < 5) {
-                // 5%機率出現百搭圖標，但如果隨機到的位置是炸彈，則不放百搭
-                int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
-                if (rl.get(wildPos) != 2) {
-                    rl.set(wildPos, 0);
+            // 可以補上新圖標的位置，才能換成特殊圖標
+            for (int i = 0; i < 9; i++) {
+                if (rl.get(i) == -1) {
+                    for (int j = 0; j < 3; j++) {
+                        // 免費遊戲部份邏輯尚未完成，暫時不放免費遊戲圖標
+                        if (j == 1) {
+                            continue;
+                        }
+
+                        // 每種特殊圖標同一輪只會出現一次
+                        if (rl.contains(j)) {
+                            continue;
+                        }
+
+                        // 百搭、免費遊戲、炸彈各有1%機率出現
+                        // 測試暫時提高機率為30%
+                        if ((int)Math.floor(Math.random() * 100) < 30) {
+                            rl.set(i, j);
+                        }
+                    }
+
+                    // 如果還是-1，表示沒有換成特殊圖標，則補上隨機一般圖標
+                    if (rl.get(i) == -1) {
+                        rl.set(i, (int)Math.floor((Math.random() * 10) + 3));
+                    }
                 }
             }
 
@@ -768,7 +794,27 @@ public class APISlotHitHopPanda {
         for (int nb : neighbors) {
             if ((rl.get(nb).equals(rl.get(pos)) || rl.get(nb).equals(0)) && !linkPos.contains(nb)) {
                 linkPos.add(nb);
-                checkLink(rl, nb, linkPos);
+                if (rl.get(nb).equals(0)) {
+                    // 如果是百搭，繼續往下找
+                    checkWildLink(rl, nb, rl.get(pos), linkPos);
+                } else {
+                    checkLink(rl, nb, linkPos);
+                }
+            }
+        }
+    }
+
+    private void checkWildLink(List<Integer> rl, int pos, int sym, List<Integer> linkPos) {
+        int[] neighbors = linkList[pos];
+        for (int nb : neighbors) {
+            if ((rl.get(nb).equals(sym) || rl.get(nb).equals(0)) && !linkPos.contains(nb)) {
+                linkPos.add(nb);
+                if (rl.get(nb).equals(0)) {
+                    // 如果是百搭，繼續往下找
+                    checkWildLink(rl, nb, sym, linkPos);
+                } else {
+                    checkLink(rl, nb, linkPos);
+                }
             }
         }
     }

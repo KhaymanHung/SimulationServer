@@ -174,9 +174,15 @@ public class APISlotHitHopPanda {
                     Map<String, Object> si = (Map<String, Object>)dt.get("si");
                     if (si != null) {
                         // 如果有消除圖標，則繼續下一輪
-                        if (si.get("ws") != null) {
-                            roundEnd = false;
-                            // LOGGER.log("Next round, ws: " + si.get("ws").toString());
+                        Map<String, Object> rs = (Map<String, Object>)si.get("rs");
+                        if (rs != null) {
+                            if (rs.get("ewp") != null || rs.get("bf") != null) {
+                                roundEnd = false;
+                            }
+                            LOGGER.log("roundEnd:" + roundEnd + ", ewp: " + (rs.get("ewp") != null ? rs.get("ewp").toString() : "null")
+                                        + ", bf: " + (rs.get("bf") != null ? rs.get("bf").toString() : "null"));
+                        } else {
+                            LOGGER.log("roundEnd:" + roundEnd + ", rs is null");
                         }
                     }
                 }
@@ -211,15 +217,32 @@ public class APISlotHitHopPanda {
             return null;
         }
 
-        List<Integer> rl = new LinkedList<>(); // 3x3盤面
-        List<Integer> sym = new LinkedList<>(); // 可以乘倍的圖標列表
+        List<Integer> rl = new LinkedList<>();      // 3x3盤面
+        List<Integer> sym = new LinkedList<>();     // 可以乘倍的圖標列表
+        
+        // 前一輪參數資料
+        Map<String, Object> previousDt;             // 前一輪dt
+        Map<String, Object> previousSi = null;      // 前一輪si
+        Map<String, Object> previousBm = null;      // 前一輪bm
+        List<Integer> previousRl;                   // 前一輪盤面
+        Map<String, Object> previousRs;             // 前一輪rs
+        List<Integer> previousEwp = null;           // 前一輪一般消除圖標位置
+        Map<String, Object> previousBf;             // 前一輪bf
+        List<Integer> previousBp = null;            // 前一輪炸彈圖標位置
+        List<Integer> previousEp = null;            // 前一輪炸彈消除圖標位置
 
         // 第一輪產生隨機盤面，後續輪盤面由前一輪掉落後產生
         if (index == 0) {
-            // 產生隨機盤面，範圍為0-12，0 百搭，1 免費遊戲，2 炸彈，3-12 一般圖標
+            // 產生隨機盤面，範圍為0-12，0 百搭，1 免費遊戲，2 炸彈，3-12 一般圖標，暫定第一輪不會出現炸彈圖標
             for (int i = 0; i < 9; i++) {
-                // 暫時將圖標範圍改為3~12之間，避免出現特殊圖標影響測試
                 rl.add((int)Math.floor((Math.random() * 10) + 3));
+                // if (rl.contains(2)) {
+                //     // 盤面有炸彈圖標時，出現的圖標範圍為3~12之間
+                //     rl.add((int)Math.floor((Math.random() * 10) + 3));
+                // } else {
+                //     // 盤面沒有炸彈圖標時，出現的圖標範圍為2-12之間
+                //     rl.add((int)Math.floor((Math.random() * 11) + 2));
+                // }
             }
 
             // 隨機產生得獎後加倍圖標，限定在3~12 之間
@@ -234,30 +257,44 @@ public class APISlotHitHopPanda {
             }
             // LOGGER.log("First round, rl: " + rl.toString() + ", sym: " + sym.toString());
         } else {
-            Map<String, Object> previousDt = (Map<String, Object>)previousResult.get("dt");
+            // 非第一輪，帶入前一輪結果
+            previousDt = (Map<String, Object>)previousResult.get("dt");
             if (previousDt == null) {
                 return null;
             }
-            Map<String, Object> previousSi = (Map<String, Object>)previousDt.get("si");
+
+            previousSi = (Map<String, Object>)previousDt.get("si");
             if (previousSi == null) {
                 return null;
             }
-            List<Integer> previousRl = (List<Integer>)previousSi.get("rl");
+
+            previousRl = (List<Integer>)previousSi.get("rl");
             if (previousRl == null || previousRl.size() != 9) {
                 return null;
             }
+            // 帶入前一輪結果的盤面
             rl = new LinkedList<>(previousRl);
-            Map<String, Object> previousRs = (Map<String, Object>)previousSi.get("rs");
+
+            // 帶入前一輪結果的消除圖標位置
+            previousRs = (Map<String, Object>)previousSi.get("rs");
             if (previousRs == null) {
                 return null;
             }
-            List<Integer> previousEwp = (List<Integer>)previousRs.get("ewp");
-            if (previousEwp == null) {
+            previousEwp = (List<Integer>)previousRs.get("ewp");
+            previousBf = (Map<String, Object>)previousRs.get("bf");
+            if (previousEwp == null && previousBf == null) {
                 return null;
             }
-            // 跟據前一輪消除圖標位置，將消除圖標上方的圖標掉落下來，並在最上方補上新的隨機圖標
+            if (previousBf != null) {
+                previousBp = (List<Integer>)previousBf.get("bp");
+                previousEp = (List<Integer>)previousBf.get("ep");
+            }
+
+            // 根據前一輪消除圖標位置，將消除圖標上方的圖標掉落下來，並在最上方補上新的隨機圖標
             for (int i = 0; i < 9; i++) {
-                if (previousEwp.contains(i)) {
+                if ((previousEwp != null && previousEwp.contains(i))
+                    || (previousBp != null && previousBp.contains(i))
+                    || (previousEp != null && previousEp.contains(i))) {
                     // 位置i有消除圖標，將上方圖標掉落下來
                     if (i % 3 > 0) {
                         // 不是最上方，將上方圖標掉落下來
@@ -265,35 +302,37 @@ public class APISlotHitHopPanda {
                             rl.set(j, rl.get(j - 1));
                         }
                     }
-                    // 最上方補上新的隨機圖標，範圍為3~12之間
-                    rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
+                    rl.set((i - (i % 3)), -1); // 標記最上方位置需要補上新圖標
+                    // 最上方補上新的隨機圖標
+                    // rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
+                    if (rl.contains(2)) {
+                        // 盤面有炸彈圖標時，補上的圖標範圍為3~12之間
+                        rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
+                    } else {
+                        // 盤面沒有炸彈圖標時，補上的圖標範圍為2-12之間
+                        rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 11) + 2));
+                    }
                 }
             }
 
             // 帶入前一輪的可以乘倍圖標列表
-            Map<String, Object> previousBm = (Map<String, Object>)previousSi.get("bm");
+            previousBm = (Map<String, Object>)previousSi.get("bm");
             if (previousBm == null) {
                 return null;
             }
             List<Integer> previousSym = (List<Integer>)previousBm.get("sym");
-            if (previousSym == null) {
-                return null;
+            if (previousSym != null) {
+                sym = new LinkedList<>(previousSym);
             }
-            sym = new LinkedList<>(previousSym);
         }
 
         String spinSid = this.getSid();
         String psid = spinSid;
         if (index > 0) {
-            Map<String, Object> previousDt = (Map<String, Object>)previousResult.get("dt");
-            if (previousDt == null) {
-                return null;
+            String previousPsid = null;
+            if (previousSi != null) {
+                previousPsid = (String)previousSi.get("psid");
             }
-            Map<String, Object> previousSi = (Map<String, Object>)previousDt.get("si");
-            if (previousSi == null) {
-                return null;
-            }
-            String previousPsid = (String)previousSi.get("psid");
             if (previousPsid == null) {
                 return null;
             }
@@ -308,42 +347,8 @@ public class APISlotHitHopPanda {
             tb = 0;
         }
 
-        // 找出消除圖標，至少3個相同圖標
-        List<Integer> ws = null;
-        // for (int i = 0; i < rl.size(); i++) {
-        //     if (i > 0 && ws != null) {
-        //         if (ws.contains(rl.get(i))) {
-        //             continue;
-        //         }
-        //     }
-        //     int checkSym = 1;
-        //     for (int k = i + 1; k < rl.size(); k += 1) {
-        //         if (rl.get(i).equals(rl.get(k))) {
-        //             checkSym++;
-        //         }
-        //     }
-        //     if (checkSym >= 3) {
-        //         if (ws == null) {
-        //             ws = new ArrayList<>();
-        //         }
-        //         ws.add(rl.get(i));
-        //     }
-        // }
-
-        Map<String, Object> wp = null;      // 此輪消除圖標位置
-        // if (ws != null && !ws.isEmpty()) {
-        //     wp = new LinkedHashMap<>();
-        //     List<Integer> slotList = new ArrayList<>();
-        //     for (int i = 0; i < ws.size(); i++) {
-        //         for (int j = 0; j < rl.size(); j++) {
-        //             if (ws.get(i).equals(rl.get(j))) {
-        //                 slotList.add(j);
-        //             }
-        //         }
-        //         wp.put((i + 1) + "", new ArrayList<>(slotList));
-        //         slotList = new ArrayList<>();
-        //     }
-        // }
+        List<Integer> ws = null;        // 此輪消除圖標
+        Map<String, Object> wp = null;  // 此輪消除圖標位置
 
         Map<Integer, Object> checkWinList = checkWinList(rl);
         if (checkWinList != null && !checkWinList.isEmpty()) {
@@ -370,20 +375,13 @@ public class APISlotHitHopPanda {
 
         // 如果不是第一輪，則帶入前一輪的乘倍前倍數
         if (index > 0) {
-            List<Integer> prevNbmd = null;
-            if (previousResult.get("dt") != null) {
-                Map<String, Object> prevDt = (Map<String, Object>)previousResult.get("dt");
-                if (prevDt.get("si") != null) {
-                    Map<String, Object> prevSi = (Map<String, Object>)prevDt.get("si");
-                    if (prevSi.get("bm") != null) {
-                        Map<String, Object> prevBm = (Map<String, Object>)prevSi.get("bm");
-                        if (prevBm.get("nbmd") != null) {
-                            prevNbmd = (List<Integer>)prevBm.get("nbmd");
-                        }
-                    }
-                }
+            List<Integer> previousNbmd = null;
+            if (previousBm != null) {
+               previousNbmd = (List<Integer>)previousBm.get("nbmd");
             }
-            obmd = new ArrayList<>(prevNbmd);
+            if (previousNbmd != null && previousNbmd.size() == 5) {
+                obmd = new ArrayList<>(previousNbmd);
+            }
         }
 
         // 找出得獎圖標中有沒有中乘倍
@@ -488,7 +486,8 @@ public class APISlotHitHopPanda {
             rs = new LinkedHashMap<>();
             List<Integer> ewp = null;          // 此輪一般消除圖標，有炸彈時為null
             Map<String,Object> bf = null;            // 此輪炸彈圖標位置，沒有炸彈時為null
-            if (!rl.contains(2)) {
+            // 有消除圖標時，就不處理炸彈圖標邏輯
+            if (wp != null) {
                 ewp = new ArrayList<>();
                 for (int i = 0; i < rl.size(); i++) {
                     if (ws != null && ws.contains(rl.get(i))) {
@@ -498,10 +497,23 @@ public class APISlotHitHopPanda {
                 // 排序ewp值，方便後續處理
                 Collections.sort(ewp);
             } else {
-                // 盤面有炸彈圖標時的處理，暫時不處理炸彈相關邏輯，將bf設為空陣列
+                // 盤面有炸彈圖標時的處理邏輯
                 bf = new LinkedHashMap<>();
                 List<Integer> bp = new ArrayList<>();       // 此輪炸彈圖標位置
                 List<Integer> ep = new ArrayList<>();       // 此輪炸彈消除圖標位置(炸彈本身及特殊圖標不消除)
+                for (int i = 0; i < rl.size(); i++) {
+                    if (rl.get(i) == 2) {
+                        bp.add(i);
+                        for (int j = 0; j < linkList[i].length; j++) {
+                            if (rl.get(linkList[i][j]) != 0 && rl.get(linkList[i][j]) != 1 && rl.get(linkList[i][j]) != 2) {
+                                // 消除圖標(非特殊圖標)
+                                if (!ep.contains(linkList[i][j])) {
+                                    ep.add(linkList[i][j]);
+                                }
+                            }
+                        }
+                    }
+                }
                 bf.put("bp", bp);
                 bf.put("ep", ep);
             }
@@ -525,24 +537,8 @@ public class APISlotHitHopPanda {
         }
 
         List<List<Integer>> rns = null;                             // 這一輪的掉落圖標
-        if (index > 0) {
+        if (index > 0 && (previousEwp != null || previousBp != null || previousEp != null)) {
             rns = new ArrayList<>();
-            Map<String, Object> previousDt = (Map<String, Object>)previousResult.get("dt");
-            if (previousDt == null) {
-                return null;
-            }
-            Map<String, Object> previousSi = (Map<String, Object>)previousDt.get("si");
-            if (previousSi == null) {
-                return null;
-            }
-            Map<String, Object> previousRs = (Map<String, Object>)previousSi.get("rs");
-            if (previousRs == null) {
-                return null;
-            }
-            List<Integer> previousEwp = (List<Integer>)previousRs.get("ewp");
-            if (previousEwp == null) {
-                return null;
-            }
             for (int i = 0; i < 3; i++) {
                 List<Integer> col = new ArrayList<>();
                 rns.add(col);
@@ -551,7 +547,9 @@ public class APISlotHitHopPanda {
                 int addCount = 0;
                 for (int j = 0; j < 3; j++) {
                     int pos = (i * 3) + j;
-                    if (previousEwp.contains(pos)) {
+                    if ((previousEwp != null && previousEwp.contains(pos))
+                        || (previousBp != null && previousBp.contains(pos))
+                        || (previousEp != null && previousEp.contains(pos))) {
                         addCount++;
                     }
                 }
@@ -575,8 +573,8 @@ public class APISlotHitHopPanda {
             st = 4;
         }
 
-        int nst = 1;     // 不明，目前只看到得獎後為4，未得獎為1
-        if (lw != null && !lw.isEmpty()) {
+        int nst = 1;     // 不明，目前只看到得獎後及有炸彈為4，未得獎為1
+        if ((lw != null && !lw.isEmpty()) || (rs != null && rs.get("bf") != null)) {
             nst = 4;
         }
                  
@@ -596,18 +594,12 @@ public class APISlotHitHopPanda {
         double ctw = tw; // 此回合得獎金額
         double ptw;
         if (index > 0) {
-            Map<String, Object> previousDt = (Map<String, Object>)previousResult.get("dt");
-            if (previousDt == null) {
-                return null;
-            }
-            Map<String, Object> previousSi = (Map<String, Object>)previousDt.get("si");
-            if (previousSi == null) {
-                return null;
-            }
             double previousPtw = 0;
-            Object previousPtwObj = previousSi.get("ptw");
-            if (previousPtwObj != null) {
-                previousPtw = Double.parseDouble(previousPtwObj.toString());
+            if (previousSi != null) {
+                Object previousPtwObj = previousSi.get("ptw");
+                if (previousPtwObj != null) {
+                    previousPtw = Double.parseDouble(previousPtwObj.toString());
+                }
             }
             ptw = BigDecimalUtil.add(previousPtw, tw);
         } else {

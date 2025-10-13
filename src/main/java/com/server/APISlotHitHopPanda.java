@@ -5,12 +5,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.http.ResponseEntity;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.io.BufferedReader;
 // import java.sql.SQLException;
+
+import org.apache.commons.logging.Log;
+
 import jakarta.servlet.http.HttpServletRequest;
 
 import com.utli.BigDecimalUtil;
@@ -173,16 +177,29 @@ public class APISlotHitHopPanda {
                 if (dt != null) {
                     Map<String, Object> si = (Map<String, Object>)dt.get("si");
                     if (si != null) {
-                        // 如果有消除圖標，則繼續下一輪
                         Map<String, Object> rs = (Map<String, Object>)si.get("rs");
                         if (rs != null) {
+                            // 如果有消除圖標或炸彈，則繼續下一輪
                             if (rs.get("ewp") != null || rs.get("bf") != null) {
                                 roundEnd = false;
                             }
-                            LOGGER.log("roundEnd:" + roundEnd + ", ewp: " + (rs.get("ewp") != null ? rs.get("ewp").toString() : "null")
-                                        + ", bf: " + (rs.get("bf") != null ? rs.get("bf").toString() : "null"));
+                            LOGGER.log("roundEnd:" + roundEnd
+                                        + ", ewp: " + (rs.get("ewp") != null ? rs.get("ewp").toString() : "null")
+                                        + ", bf: " + (rs.get("bf") != null ? rs.get("bf").toString() : "null")
+                                        + ", fs: " + (si.get("fs") != null ? si.get("fs").toString() : "null"));
                         } else {
-                            LOGGER.log("roundEnd:" + roundEnd + ", rs is null");
+                            // 沒有消除圖標或炸彈時，判斷是否進入免費遊戲，如果有免費遊戲且不是最後一輪則繼續下一輪
+                            Map<String, Object> fs = (Map<String, Object>)si.get("fs");
+                            if (fs != null && (Integer)fs.get("s") > 0) {
+                                roundEnd = false;
+                                LOGGER.log("roundEnd:" + roundEnd + ", rs is null, fs: " + fs.toString());
+                            } else {
+                                if (fs == null) {
+                                    LOGGER.log("roundEnd:" + roundEnd + ", rs is null && fs is null");
+                                } else {
+                                    LOGGER.log("roundEnd:" + roundEnd + ", rs is null && free game ended");
+                                }
+                            }
                         }
                     }
                 }
@@ -214,6 +231,7 @@ public class APISlotHitHopPanda {
 
     private Map<String, Object> createSpinResult(int index, Map<String, Object> previousResult, double gambleValue, int gambleLv, double lineCountValue) {
         if (index < 0 || (index > 0 && previousResult == null)) {
+            LOGGER.log("index:" + index + ", previousResult:" + previousResult);
             return null;
         }
 
@@ -225,35 +243,24 @@ public class APISlotHitHopPanda {
         Map<String, Object> previousSi = null;      // 前一輪si
         Map<String, Object> previousBm = null;      // 前一輪bm
         List<Integer> previousRl;                   // 前一輪盤面
-        Map<String, Object> previousRs;             // 前一輪rs
+        Map<String, Object> previousRs = null;      // 前一輪rs
         List<Integer> previousEwp = null;           // 前一輪一般消除圖標位置
         Map<String, Object> previousBf = null;      // 前一輪bf
         List<Integer> previousBp = null;            // 前一輪炸彈圖標位置
         List<Integer> previousEp = null;            // 前一輪炸彈消除圖標位置
+        Map<String, Object> previousFs = null;      // 前一輪fs
 
         // 第一輪產生隨機盤面，後續輪盤面由前一輪掉落後產生
         if (index == 0) {
             // 產生隨機盤面，範圍為0-12，0 百搭，1 免費遊戲，2 炸彈，3-12 一般圖標
             for (int i = 0; i < 9; i++) {
                 rl.add((int)Math.floor((Math.random() * 10) + 3));
-                // if (rl.contains(2)) {
-                //     // 盤面有炸彈圖標時，出現的圖標範圍為3~12之間
-                //     rl.add((int)Math.floor((Math.random() * 10) + 3));
-                // } else {
-                //     // 盤面沒有炸彈圖標時，出現的圖標範圍為2-12之間
-                //     rl.add((int)Math.floor((Math.random() * 11) + 2));
-                // }
             }
 
             for (int i = 0; i < 3; i++) {
-                // 免費遊戲部份邏輯尚未完成，暫時不放免費遊戲圖標
-                if (i == 1) {
-                    continue;
-                }
-
                 // 百搭、免費遊戲、炸彈各有1%機率出現，如果隨機到的位置是其它特殊圖標，則不放
-                // 測試暫時提高機率為30%
-                if ((int)Math.floor(Math.random() * 100) < 30) {
+                // 測試暫時提高機率為10%
+                if ((int)Math.floor(Math.random() * 100) < 10) {
                     int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
                     if (rl.get(wildPos) != 0 && rl.get(wildPos) != 1 && rl.get(wildPos) != 2) {
                         rl.set(wildPos, i);
@@ -276,20 +283,21 @@ public class APISlotHitHopPanda {
             // 非第一輪，帶入前一輪結果
             previousDt = (Map<String, Object>)previousResult.get("dt");
             if (previousDt == null) {
+                LOGGER.log("previousDt:" + previousDt);
                 return null;
             }
 
             previousSi = (Map<String, Object>)previousDt.get("si");
             if (previousSi == null) {
+                LOGGER.log("previousSi:" + previousSi);
                 return null;
             }
 
             previousRl = (List<Integer>)previousSi.get("rl");
             if (previousRl == null || previousRl.size() != 9) {
+                LOGGER.log("previousRl: " + previousRl + ", size: " + ((previousRl != null) ? previousRl.size() : "null"));
                 return null;
             }
-            // 帶入前一輪結果的盤面
-            rl = new LinkedList<>(previousRl);
 
             // 帶入前一輪結果的消除圖標位置
             previousRs = (Map<String, Object>)previousSi.get("rs");
@@ -302,53 +310,60 @@ public class APISlotHitHopPanda {
                 previousEp = (List<Integer>)previousBf.get("ep");
             }
 
-            // 根據前一輪消除圖標位置，將消除圖標上方的圖標掉落下來，並在最上方補上新的隨機圖標
-            for (int i = 0; i < 9; i++) {
-                if ((previousEwp != null && previousEwp.contains(i))
-                    || (previousBp != null && previousBp.contains(i))
-                    || (previousEp != null && previousEp.contains(i))) {
-                    // 位置i有消除圖標，將上方圖標掉落下來
-                    if (i % 3 > 0) {
-                        // 不是最上方，將上方圖標掉落下來
-                        for (int j = i; j > (i - (i % 3)); j--) {
-                            rl.set(j, rl.get(j - 1));
-                        }
-                    }
-                    rl.set((i - (i % 3)), -1); // 標記最上方位置需要補上新圖標
-                    // if (rl.contains(2)) {
-                    //     // 盤面有炸彈圖標時，補上的圖標範圍為3~12之間
-                    //     rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 10) + 3));
-                    // } else {
-                    //     // 盤面沒有炸彈圖標時，補上的圖標範圍為2-12之間
-                    //     rl.set((i - (i % 3)), (int)Math.floor((Math.random() * 11) + 2));
-                    // }
+            previousFs = (Map<String, Object>)previousSi.get("fs");
+            if (previousRs == null && previousFs != null) {
+                // 前一輪沒有消除圖標及炸彈，但進入免費遊戲，重新產生盤面
+                rl = new LinkedList<>();
+
+                // 產生隨機盤面，範圍為3-12，免費遊戲中不會有0 百搭，1 免費遊戲，2 炸彈
+                for (int i = 0; i < 9; i++) {
+                    rl.add((int)Math.floor((Math.random() * 10) + 3));
                 }
-            }
+            } else {
+                // 帶入前一輪結果的盤面
+                rl = new LinkedList<>(previousRl);
 
-            // 可以補上新圖標的位置，才能換成特殊圖標
-            for (int i = 0; i < 9; i++) {
-                if (rl.get(i) == -1) {
-                    for (int j = 0; j < 3; j++) {
-                        // 免費遊戲部份邏輯尚未完成，暫時不放免費遊戲圖標
-                        if (j == 1) {
-                            continue;
+                // 根據前一輪消除圖標位置，將消除圖標上方的圖標掉落下來，並在最上方補上新的隨機圖標
+                for (int i = 0; i < 9; i++) {
+                    if ((previousEwp != null && previousEwp.contains(i))
+                        || (previousBp != null && previousBp.contains(i))
+                        || (previousEp != null && previousEp.contains(i))) {
+                        // 位置i有消除圖標，將上方圖標掉落下來
+                        if (i % 3 > 0) {
+                            // 不是最上方，將上方圖標掉落下來
+                            for (int j = i; j > (i - (i % 3)); j--) {
+                                rl.set(j, rl.get(j - 1));
+                            }
                         }
-
-                        // 每種特殊圖標同一輪只會出現一次
-                        if (rl.contains(j)) {
-                            continue;
-                        }
-
-                        // 百搭、免費遊戲、炸彈各有1%機率出現
-                        // 測試暫時提高機率為30%
-                        if ((int)Math.floor(Math.random() * 100) < 30) {
-                            rl.set(i, j);
-                        }
+                        rl.set((i - (i % 3)), -1); // 標記最上方位置需要補上新圖標
                     }
+                }
 
-                    // 如果還是-1，表示沒有換成特殊圖標，則補上隨機一般圖標
+                // 可以補上新圖標的位置，才能換成特殊圖標
+                for (int i = 0; i < 9; i++) {
                     if (rl.get(i) == -1) {
-                        rl.set(i, (int)Math.floor((Math.random() * 10) + 3));
+                        for (int j = 0; j < 3; j++) {
+                            if (previousFs != null) {
+                                // 在免費遊戲中不會出現特殊圖標
+                                continue;
+                            }
+
+                            // 每種特殊圖標同一輪只會出現一次
+                            if (rl.contains(j)) {
+                                continue;
+                            }
+
+                            // 百搭、免費遊戲、炸彈各有1%機率出現
+                            // 測試暫時提高機率為10%
+                            if ((int)Math.floor(Math.random() * 100) < 10) {
+                                rl.set(i, j);
+                            }
+                        }
+
+                        // 如果還是-1，表示沒有換成特殊圖標，則補上隨機一般圖標
+                        if (rl.get(i) == -1) {
+                            rl.set(i, (int)Math.floor((Math.random() * 10) + 3));
+                        }
                     }
                 }
             }
@@ -371,6 +386,7 @@ public class APISlotHitHopPanda {
                 previousPsid = (String)previousSi.get("psid");
             }
             if (previousPsid == null) {
+                LOGGER.log("previousPsid:" + previousPsid);
                 return null;
             }
             psid = previousPsid;
@@ -425,19 +441,43 @@ public class APISlotHitHopPanda {
         Map<String, Object> bmw = null;     // 乘倍圖標中獎時乘倍前得獎金額，得獎圖標沒有中乘倍時為null
         Map<String, Object> lw = null;      // 乘倍後每線消除得獎金額
 
+        boolean enterFree = false; // 是否進入免費遊戲
+        if (previousFs != null && ((Integer)previousFs.get("s")).equals((Integer)previousFs.get("ts"))) {
+            enterFree = true;
+        }
+
         // 如果不是第一輪，則帶入前一輪的乘倍前倍數
         if (index > 0) {
-            List<Integer> previousNbmd = null;
-            if (previousBm != null) {
-               previousNbmd = (List<Integer>)previousBm.get("nbmd");
-            }
-            if (previousNbmd != null && previousNbmd.size() == 5) {
-                obmd = new ArrayList<>(previousNbmd);
+            if (enterFree) {
+                // 前一輪進入免費遊戲，則乘倍前倍數預設值改為5,5,5,5,5
+                obmd = new ArrayList<>(Arrays.asList(5, 5, 5, 5, 5));
             } else {
+                List<Integer> previousNbmd = null;
                 if (previousBm != null) {
-                    List<Integer> previousObmd = (List<Integer>)previousBm.get("obmd");
-                    obmd = (new ArrayList<>(previousObmd));
+                    previousNbmd = (List<Integer>)previousBm.get("nbmd");
                 }
+                if (previousNbmd != null && previousNbmd.size() == 5) {
+                    obmd = new ArrayList<>(previousNbmd);
+                } else {
+                    if (previousBm != null) {
+                        List<Integer> previousObmd = (List<Integer>)previousBm.get("obmd");
+                        obmd = (new ArrayList<>(previousObmd));
+                    }
+                }
+            }
+        }
+
+        if (previousFs != null && previousRs == null) {
+            // 免費遊戲中如果前一輪未得獎，則重新隨機產生得獎後加倍圖標，限定在3~12 之間
+            sym.clear();
+            List<Integer> allSymList = new ArrayList<>(Arrays.asList(3,4,5,6,7,8,9,10,11,12));
+            for (int i = 0; i < 5; i++) {
+                if (sym.size() >= 5) {
+                    break;
+                }
+                int symIndex = (int)Math.floor(Math.random() * allSymList.size()); // 隨機產生3~12之間的圖標
+                sym.add(allSymList.get(symIndex));
+                allSymList.remove(symIndex); // 移除已選圖標，避免重複
             }
         }
 
@@ -524,7 +564,13 @@ public class APISlotHitHopPanda {
             }
             // 再重新隨機產生倍數補足到5個
             for (int i = nbmd.size(); i < 5; i++) {
-                nbmd.add((int)Math.floor((Math.random() * 4) + 2)); // 隨機產生2~5之間的乘倍數
+                if (previousFs != null) {
+                    // 免費遊戲中，倍數限定為5~10之間
+                    nbmd.add((int)Math.floor((Math.random() * 6) + 5));
+                } else {
+                    // 正常遊戲中，倍數限定為2~6之間
+                    nbmd.add((int)Math.floor((Math.random() * 5) + 2));
+                }
             }
         }
         
@@ -541,8 +587,8 @@ public class APISlotHitHopPanda {
         Map<String, Object> rs = null;
         if (wp != null || rl.contains(2)) {
             rs = new LinkedHashMap<>();
-            List<Integer> ewp = null;          // 此輪一般消除圖標，有炸彈時為null
-            Map<String,Object> bf = null;            // 此輪炸彈圖標位置，沒有炸彈時為null
+            List<Integer> ewp = null;               // 此輪一般消除圖標，有炸彈時為null
+            Map<String,Object> bf = null;           // 此輪炸彈圖標位置，沒有炸彈時為null
             // 有消除圖標時，就不處理炸彈圖標邏輯
             if (wp != null) {
                 ewp = new ArrayList<>();
@@ -560,7 +606,7 @@ public class APISlotHitHopPanda {
                 // 排序ewp值，方便後續處理
                 Collections.sort(ewp);
             } else {
-                // 盤面有炸彈圖標時的處理邏輯 else {
+                // 盤面有炸彈圖標時的處理邏輯
                 bf = new LinkedHashMap<>();
                 List<Integer> bp = new ArrayList<>();       // 此輪炸彈圖標位置
                 List<Integer> ep = new ArrayList<>();       // 此輪炸彈消除圖標位置(炸彈本身及特殊圖標不消除)
@@ -630,16 +676,6 @@ public class APISlotHitHopPanda {
             fstc = new LinkedHashMap<>();
             fstc.put("4", index);
         }
-
-        int st = 1;      // 不明，目前只看到第一回合為1，第二回合後為4
-        if (index > 0) {
-            st = 4;
-        }
-
-        int nst = 1;     // 不明，目前只看到得獎後及有炸彈為4，未得獎為1
-        if ((lw != null && !lw.isEmpty()) || (rs != null && rs.get("bf") != null)) {
-            nst = 4;
-        }
                  
         double tw = 0;
         if (lw != null && !lw.isEmpty()) {
@@ -678,9 +714,144 @@ public class APISlotHitHopPanda {
             pcwc = 1;
         }
 
+        Map<String, Object> fs = null;
+        if (previousFs == null) {
+            if (rs == null && rl.contains(1)) {
+                // 前一輪沒有免費遊戲，此輪沒有消除及炸彈，盤面有免費遊戲圖標，表示進入免費遊戲
+                fs = new LinkedHashMap<>();
+                int fsCount = 0;
+                for (int i = 0; i < rl.size(); i++) {
+                    if (rl.get(i) == 1) {
+                        fsCount++;
+                    }
+                }
+                fsCount = fsCount * 3;          // 免費遊戲圖標數量乘以3倍
+                fs.put("s", fsCount);           // 免費遊戲未執行回合量
+                fs.put("ts", fsCount);          // 免費遊戲總回合數
+                fs.put("as", null);             // 不明
+                fs.put("aw", 0.0);              // 免費遊戲總得獎金額
+                
+                nbmd = new ArrayList<>(Arrays.asList(5, 5, 5, 5, 5));
+                bm.replace("nbmd", nbmd);
+            }
+        } else {
+            Map<String, Object> tempFs = new LinkedHashMap<>(previousFs);
+
+            if (fstc == null) {
+                fstc = new LinkedHashMap<>();
+            }
+
+            if (previousRs == null) {
+                // 免費遊戲中，前輪未得獎也沒有炸彈
+
+                // 取得前輪免費遊戲剩餘回合數
+                int previousS = 0;
+                Object previousSObj = previousFs.get("s");
+                if (previousSObj != null) {
+                    previousS = Integer.parseInt(previousSObj.toString());
+                }
+                
+                tempFs.replace("s", (previousS - 1));     // 免費遊戲剩餘回合數-1
+
+                // fstc的21加1
+                Map<String, Object> previousFstc = null;
+                if (previousSi != null) {
+                    previousFstc = (Map<String, Object>)previousSi.get("fstc");
+                }
+                if (previousFstc != null) {
+                    Object previousFstc21Obj = previousFstc.get("21");
+                    int previousFstc21 = 0;
+                    if (previousFstc21Obj != null) {
+                        previousFstc21 = Integer.parseInt(previousFstc21Obj.toString());
+                    }
+                    if (fstc.get("21") != null) {
+                        fstc.replace("21", (previousFstc21 + 1));
+                    } else {
+                        fstc.put("21", (previousFstc21 + 1));
+                    }
+
+                    // 帶入前輪fstc22值
+                    Object previousFstc22Obj = previousFstc.get("22");
+                    if (previousFstc22Obj != null) {
+                        int previousFstc22 = Integer.parseInt(previousFstc22Obj.toString());
+                        fstc.put("22", previousFstc22); 
+                    }
+                }
+            } else {
+                // 免費遊戲中，前輪得獎或有炸彈
+                
+                Map<String, Object> previousFstc = null;
+                if (previousSi != null) {
+                    previousFstc = (Map<String, Object>)previousSi.get("fstc");
+                }
+                if (previousFstc != null) {
+                    // fstc的22加1
+                    Object previousFstc22Obj = previousFstc.get("22");
+                    int previousFstc22 = 0;
+                    if (previousFstc22Obj != null) {
+                        previousFstc22 = Integer.parseInt(previousFstc22Obj.toString());
+                    }
+                    if (fstc.get("22") != null) {
+                        fstc.replace("22", (previousFstc22 + 1));
+                    } else {
+                        fstc.put("22", (previousFstc22 + 1));
+                    }
+
+                    // 帶入前輪fstc21值
+                    Object previousFstc21Obj = previousFstc.get("21");
+                    if (previousFstc21Obj != null) {
+                        int previousFstc21 = Integer.parseInt(previousFstc21Obj.toString());
+                        fstc.put("21", previousFstc21);
+                    }
+                }
+            }
+
+            if (rs != null && rs.get("ewp") != null) {
+                // 免費遊戲中有消除圖標，則累計得獎金額
+                double previousAw = 0;
+                Object previousAwObj = previousFs.get("aw");
+                if (previousAwObj != null) {
+                    previousAw = Double.parseDouble(previousAwObj.toString());
+                }
+                tempFs.replace("aw", BigDecimalUtil.add(previousAw, ctw));
+            }
+
+            fs = tempFs;
+        }
+        LOGGER.log("fs: " + ((fs != null) ? fs.toString() : "null"));
+
+
+        int st = 1;      // 前一回合的狀態，第一回合為1
+        if (index > 0) {
+            if (previousSi != null) {
+                Object previousNstObj = previousSi.get("nst");
+                st = previousNstObj != null ? Integer.parseInt(previousNstObj.toString()) : 1;
+            }
+        }
+
+        int nst;    // 本輪狀態，未得獎為1，得獎或有炸彈為4，免費遊戲未得獎第一回合為21，得獎或有炸彈為22
+        if ((lw != null && !lw.isEmpty()) || (rs != null && rs.get("bf") != null)) {
+            if (fs != null) {
+                nst = 22;   // 免費遊戲得獎或有炸彈
+            } else {
+                nst = 4;    // 一般遊戲得獎或有炸彈
+            }
+        } else {
+            if (fs != null) {
+                int s = fs.get("s") != null ? Integer.parseInt(fs.get("s").toString()) : 0;
+                if (s == 0) {
+                    nst = 1;    // 免費遊戲未得獎且免費遊戲結束，回到一般遊戲
+                } else {
+                    nst = 21;   // 免費遊戲未得獎且還有回合
+                }
+            } else {
+                nst = 1;    // 一般遊戲未得獎
+            }
+        }
+
         this.userMoney = BigDecimalUtil.multiply(bl, 100);
-        LOGGER.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb + ", win:" + tw + ", start - gamble: " + blab + ", profit: " + np + ", end money: " + bl);
-        
+        LOGGER.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
+                + ", tw:" + tw + ", ptw: " + ptw + ", aw: " + aw + ", profit: " + np + ", end money: " + bl);
         LOGGER.log("round:" + (index + 1)
                             + ", rl: " + rl.toString() + ", ws: " + ws
                             + ", lw: " + (lw != null ? lw.toString() : "null")
@@ -702,14 +873,14 @@ public class APISlotHitHopPanda {
         // rns = null; // 先將這一輪的掉落圖標清空，避免影響後續邏輯判斷
 
         Map<String, Object> si = new LinkedHashMap<>();
-        si.put("wp", wp);                                                   // 此輪消除圖標位置
-        si.put("lw", lw);                                                   // 乘倍後每線消除得獎金額
-        si.put("ws", ws);                                                   // 此輪消除圖標id
-        si.put("gaw", gaw);                                                 // 消除的單個icon得獎金額，乘倍後獎金/消除個數
-        si.put("bm", bm);                                                   // 得獎倍數資料
+        si.put("wp", wp);                                       // 此輪消除圖標位置
+        si.put("lw", lw);                                       // 乘倍後每線消除得獎金額
+        si.put("ws", ws);                                       // 此輪消除圖標id
+        si.put("gaw", gaw);                                     // 消除的單個icon得獎金額，乘倍後獎金/消除個數
+        si.put("bm", bm);                                       // 得獎倍數資料
         si.put("rns", rns);                                     // 這一輪的掉落圖標
-        si.put("fs", null);
-        si.put("rs", rs);                                                   // 一般消除及炸彈相關資料，沒有消除也沒有炸彈時為null
+        si.put("fs", fs);                                       // 免費遊戲相關參數
+        si.put("rs", rs);                                       // 一般消除及炸彈相關資料，沒有消除也沒有炸彈時為null
         si.put("ptw", ptw);                                     // 前一輪時總得獎金額
         si.put("gwt", -1);
         si.put("pmt", null);
@@ -717,17 +888,17 @@ public class APISlotHitHopPanda {
         si.put("ml", gambleLv);                                 // 押注倍數
         si.put("cs", cs);                                       // 每線押注金額
         si.put("rl", rl);                                       // 消除前盤面
-        si.put("ctw", ctw);                                       // 此回合得獎金額
-        si.put("cwc", cwc);                                       // 已連消回合數
+        si.put("ctw", ctw);                                     // 此回合得獎金額
+        si.put("cwc", cwc);                                     // 已連消回合數
         si.put("fstc", fstc);                                   // 連消時4為連消數量，有免費回合時會出現21和22
-        si.put("pcwc", pcwc);                                      // 第一回合有消除為1，沒有消除為0，後續回合皆為0
+        si.put("pcwc", pcwc);                                   // 第一回合有消除為1，沒有消除為0，後續回合皆為0
         si.put("rwsp", null);                                   // 不明，目前看到結果皆為null
         si.put("hashr", null);
         si.put("fb", null);
         si.put("sid", spinSid);                                 // 此輪局號
         si.put("psid", psid);                                   // 連消及免費遊戲時的總局號(及第一輪局號)
-        si.put("st", st);                                       // 不明，目前只看到第一回合為1，第二回合後為4
-        si.put("nst", nst);                                     // 不明，目前只看到得獎後為4，未得獎為1
+        si.put("st", st);                                       // 前一回合的nst，第一回合為1
+        si.put("nst", nst);                                     // 得獎後為4，未得獎為1，免費遊戲得獎為21，未得獎為22，免費遊戲第一回合為22
         si.put("pf", 1);
         si.put("aw", aw);
         si.put("wid", 0);

@@ -183,7 +183,7 @@ public class BikiniParadise {
 
         for (int i = 0; i < 2; i++) {
             // 百搭、免費遊戲各有0.1%機率出現，如果隨機到的位置是其它特殊圖標，則不放
-            // 測試暫時提高機率為2%
+            // 測試暫時提高機率為10%
             if (i == 1) {
                 // 測試暫不出現免費遊戲圖標
                 continue;
@@ -192,11 +192,13 @@ public class BikiniParadise {
             for (int j = 0; j < 5; j++) {
                 // 每column最多只能有一個百搭或免費遊戲圖標，每column的出現機率階相等
                 int randomNum = (int)Math.floor(Math.random() * 100);
-                if (randomNum < 10) {
+                if (randomNum < 15) {
                     if (i == 0) {
                         int wildPos = (int)Math.floor(Math.random() * 7) - 3; // 隨機產生-3~3之間的位置
                         int startPos = wildPos < 0 ? 0 : wildPos;
                         int endPos = wildPos + 3 > 3 ? 3 : wildPos + 3;
+                        // int startPos = 0;
+                        // int endPos = 3;
                         LOGGER.log("[debug] column: " + j + ", wildPos: " + wildPos + ", startPos: " + startPos + ", endPos: " + endPos);
                         for (int k = startPos; k <= endPos; k++) {
                             int pos = j * 4 + k;
@@ -250,6 +252,8 @@ public class BikiniParadise {
                 wppr.get((int)(i / 4)).add(i % 4);
             }
         }
+
+        int wmCount = 0;
         for (int i = 0; i < wppr.size(); i++) {
             if (wppr.get(i).size() == 4) {
                 if (rwm == null) {
@@ -262,7 +266,12 @@ public class BikiniParadise {
 
                 // 計算總乘倍數
                 wm = BigDecimalUtil.multiply(wm, multi);
+
+                wmCount++;
             }
+        }
+        if (wmCount == 5) {
+            wm = 5000; // 全盤百搭，總乘倍數為5000倍
         }
 
         // 在rwsp中加入得獎倍數，在lw中加入得獎金額，並計算乘倍前後的總得獎金額
@@ -318,6 +327,7 @@ public class BikiniParadise {
         int pcwc = 0;       // 同cwc
 
         Map<String, Object> fs = null;
+        int sc = 0;         // 免費遊戲圖標數目
         if (rl.contains(1)) {
             // 前一輪沒有免費遊戲，此輪沒有消除及炸彈，盤面有免費遊戲圖標，表示進入免費遊戲
             fs = new LinkedHashMap<>();
@@ -327,6 +337,8 @@ public class BikiniParadise {
                     fsCount++;
                 }
             }
+
+            sc = fsCount;
             fsCount = freegameNumber[fsCount];  // 免費遊戲數量
             fs.put("s", fsCount);           // 免費遊戲未執行回合量
             fs.put("ts", fsCount);          // 免費遊戲總回合數
@@ -359,6 +371,7 @@ public class BikiniParadise {
         si.put("rwm", rwm);                                     // 中乘倍的column位置
         si.put("wabm", wabm);                                   // 乘倍前總得獎金額
         si.put("fs", fs);                                       // 免費遊戲相關參數
+        si.put("sc", sc);                                       // 免費遊戲圖標數目
         si.put("wppr", wppr);                                 //  百搭的出現位置，免費遊戲中顯示為變動後的位置
         si.put("gwt", -1);
         si.put("pmt", null);

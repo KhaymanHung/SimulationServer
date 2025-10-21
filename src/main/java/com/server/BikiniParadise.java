@@ -19,6 +19,7 @@ import com.utli.Logger;
 
 @CrossOrigin(origins = "*")
 @RestController
+@SuppressWarnings("unchecked")
 public class BikiniParadise {
     double userMoney = 0;
     long sid = 1;
@@ -101,7 +102,7 @@ public class BikiniParadise {
         result.put("msg", "Success");
         result.put("data", data);
 
-        LOGGER.log("==================================== enter game end ====================================");
+        LOGGER.log("====================================  enter game end  ====================================");
 
         return ResponseEntity.ok(result);
     }
@@ -141,11 +142,40 @@ public class BikiniParadise {
         // double gamble = BigDecimalUtil.multiply(gambleValue, lineCountValue);
 
         List<Object> gambleResult = new ArrayList<>();
-        // 產生新一輪結果
-        Map<String, Object> gambleItem = createSpinResult(gambleValue, gambleLv, lineCountValue);
-        if (gambleItem != null) {
-            gambleResult.add(gambleItem);
-        }
+        boolean roundEnd;
+        do {
+            roundEnd = true;
+            // 取得前一輪結果
+            Map<String, Object> lastResult = null;
+            if (!gambleResult.isEmpty()) {
+                lastResult = (Map<String, Object>)gambleResult.get(gambleResult.size() - 1);
+            }
+
+            // 產生新一輪結果
+            Map<String, Object> gambleItem = createSpinResult(gambleResult.size(), lastResult, gambleValue, gambleLv, lineCountValue);
+            if (gambleItem != null) {
+                Map<String, Object> dt = (Map<String, Object>)gambleItem.get("dt");
+                if (dt != null) {
+                    Map<String, Object> si = (Map<String, Object>)dt.get("si");
+                    if (si != null) {
+                        // 判斷是否進入免費遊戲，如果有免費遊戲且不是最後一輪則繼續下一輪
+                        Map<String, Object> fs = (Map<String, Object>)si.get("fs");
+                        if (fs != null && (Integer)fs.get("s") > 0) {
+                            roundEnd = false;
+                            LOGGER.log("roundEnd:" + roundEnd + ", fs: " + fs.toString());
+                        } else {
+                            if (fs == null) {
+                                LOGGER.log("roundEnd:" + roundEnd + ", fs is null");
+                            } else {
+                                LOGGER.log("roundEnd:" + roundEnd + ", free game ended");
+                            }
+                        }
+
+                    }
+                }
+                gambleResult.add(new LinkedHashMap<>(gambleItem));
+            }
+        } while (!roundEnd);
 
         // this.userMoney = BigDecimalUtil.subtract(this.userMoney, gamble);
         // LOGGER.log("userMoney after gamble: " + this.userMoney + ", gamble: " + gamble + ", gambleValue: " + gambleValue + ", lineCountValue: " + lineCountValue);
@@ -168,13 +198,33 @@ public class BikiniParadise {
         return ResponseEntity.ok(result);
     }
 
-    private Map<String, Object> createSpinResult(double gambleValue, int gambleLv, double lineCountValue) {
+    private Map<String, Object> createSpinResult(int index, Map<String, Object> previousResult, double gambleValue, int gambleLv, double lineCountValue) {
+        if (index < 0 || (index > 0 && previousResult == null)) {
+            LOGGER.log("index:" + index + ", previousResult:" + previousResult);
+            return null;
+        }
         if (gambleValue < 1 || gambleLv < 1 || lineCountValue < 1) {
             LOGGER.log("gambleValue:" + gambleValue + ", gambleLv:" + gambleLv + ", lineCountValue:" + lineCountValue);
             return null;
         }
 
         List<Integer> rl = new LinkedList<>();      // 縱4橫5盤面
+        List<Integer> orl = null;                   // 免費遊戲時百搭未變動前盤面，一般遊戲皆為null
+
+        // 前一輪參數資料
+        Map<String, Object> previousDt;             // 前一輪dt
+        Map<String, Object> previousSi;             // 前一輪si
+        Map<String, Object> previousFs = null;      // 前一輪fs
+        
+        if (index != 0) {
+            previousDt = (Map<String, Object>)previousResult.get("dt");
+            if (previousDt != null) {
+                previousSi = (Map<String, Object>)previousDt.get("si");
+                if (previousSi != null) {
+                    previousFs = (Map<String, Object>)previousSi.get("fs");
+                }
+            }
+        }
         
         // 產生隨機盤面，範圍為0-12，0 百搭，1 免費遊戲，2 空白，3-12 一般圖標
         for (int i = 0; i < 20; i++) {
@@ -184,16 +234,16 @@ public class BikiniParadise {
         for (int i = 0; i < 2; i++) {
             // 百搭、免費遊戲各有0.1%機率出現，如果隨機到的位置是其它特殊圖標，則不放
             // 測試暫時提高機率為10%
-            if (i == 1) {
-                // 測試暫不出現免費遊戲圖標
-                continue;
-            }
+            // if (i == 1) {
+            //     // 測試暫不出現免費遊戲圖標
+            //     continue;
+            // }
 
             for (int j = 0; j < 5; j++) {
-                // 每column最多只能有一個百搭或免費遊戲圖標，每column的出現機率階相等
+                // 每column最多只能有一個百搭或免費遊戲圖標，每column的出現機率相等
                 int randomNum = (int)Math.floor(Math.random() * 100);
-                if (randomNum < 15) {
-                    if (i == 0) {
+                if (i == 0) {                    
+                    if ((previousFs == null && randomNum < 15) || (previousFs != null && randomNum < 10)) {
                         int wildPos = (int)Math.floor(Math.random() * 7) - 3; // 隨機產生-3~3之間的位置
                         int startPos = wildPos < 0 ? 0 : wildPos;
                         int endPos = wildPos + 3 > 3 ? 3 : wildPos + 3;
@@ -206,13 +256,85 @@ public class BikiniParadise {
                                 rl.set(pos, 0);
                             }
                         }
-                    } else {
+                    }
+                } else if (i == 1) {
+                    if ((previousFs == null && randomNum < 20) || (previousFs != null && randomNum < 10)) {
+                        int scatterPos = (int)Math.floor(Math.random() * 4); // 隨機產生0~3之間的位置
+                        int pos = j * 4 + scatterPos;
+                        if (pos >= rl.size() || rl.get(pos) == 0) {
+                            continue;
+                        }
+                        LOGGER.log("[debug] column: " + j + ", scatter pos: " + pos);
+                        rl.set(pos, 1);
                     }
                 }
             }
         }
 
-        LOGGER.log("First round, rl: " + rl.toString());
+        // 百搭的出現位置，先取得變動前的位置，沒有百搭時顯示為空list而非null
+        List<List<Integer>> wppr = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            wppr.add(new ArrayList<>());
+        }
+        for (int i = 0; i < rl.size(); i ++) {
+            if (rl.get(i) == 0) {
+                wppr.get((int)(i / 4)).add(i % 4);
+            }
+        }
+
+        int sc = 0;         // 免費遊戲圖標數目
+        if (rl.contains(1)) {
+            int fsCount = 0;
+            for (int i = 0; i < rl.size(); i++) {
+                if (rl.get(i) == 1) {
+                    fsCount++;
+                }
+            }
+
+            sc = fsCount;
+        }
+
+        Map<String, Object> fs = null;  // 免費遊戲相關參數
+        if (previousFs == null && sc >= 3) {                
+            // 前一輪沒有免費遊戲，盤面有3個以上免費遊戲圖標，表示進入免費遊戲
+            fs = new LinkedHashMap<>();
+            int fsCount = freegameNumber[sc];  // 免費遊戲數量
+            fs.put("s", fsCount);           // 免費遊戲未執行回合量
+            fs.put("ts", fsCount);          // 免費遊戲總回合數
+            fs.put("aw", 0.0);              // 免費遊戲總得獎金額
+            fs.put("nosa", fsCount);        // 免費遊戲增加回合數
+            fs.put("wpbn", null);           // 免費遊戲中百搭圖標變動前位置，進入免費遊戲當回合為null
+        } else if (previousFs != null) {
+            // 前一輪已有免費遊戲
+            fs = new LinkedHashMap<>(previousFs);
+            int currentFreeSpin = (Integer)fs.get("s") - 1;
+            int totalFreeSpin = (Integer)fs.get("ts");
+            int addedFreeSpin = freegameNumber[sc];
+            currentFreeSpin += addedFreeSpin;
+            totalFreeSpin += addedFreeSpin;
+            fs.put("s", currentFreeSpin);
+            fs.put("ts", totalFreeSpin);
+            fs.put("aw", (Double)fs.get("aw"));
+            fs.put("nosa", addedFreeSpin);
+            fs.put("wpbn", new ArrayList<>(wppr)); // 免費遊戲中百搭圖標變動前位置，即使沒出現百搭也會是空list而非null
+
+            // 免費遊戲時記錄百搭變動前盤面
+            orl = new LinkedList<>(rl);
+
+            for (int i = 0; i < wppr.size(); i++) {
+                List<Integer> wildPosList = wppr.get(i);
+                if (!wildPosList.isEmpty()) {
+                    // 把該column全設為百搭
+                    for (int j = i * 4; j < (i + 1) * 4; j++) {
+                        rl.set(j, 0);
+                    }
+                    wppr.set(i, Arrays.asList(0,0,0,0)); // 該column的百搭位置設為全滿
+                }
+            }
+        }
+
+        LOGGER.log("round " + index + ", rl: " + rl.toString() + ", sc: " + sc + ", wppr: " + wppr.toString()
+                    + ", orl: " + orl + ", fs: " + ((fs != null) ? fs.toString() : "null"));
 
         String spinSid = this.getSid();
         String psid = spinSid;
@@ -242,17 +364,6 @@ public class BikiniParadise {
         double wm = 1;                      // 總乘倍數
         List<Integer> rwm = null;           // 中乘倍的column位置
 
-        // 百搭的出現位置，免費遊戲中顯示為變動後的位置，沒有百搭時顯示為空list而非null
-        List<List<Integer>> wppr = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            wppr.add(new ArrayList<>());
-        }
-        for (int i = 0; i < rl.size(); i ++) {
-            if (rl.get(i) == 0) {
-                wppr.get((int)(i / 4)).add(i % 4);
-            }
-        }
-
         int wmCount = 0;
         for (int i = 0; i < wppr.size(); i++) {
             if (wppr.get(i).size() == 4) {
@@ -277,14 +388,13 @@ public class BikiniParadise {
         // 在rwsp中加入得獎倍數，在lw中加入得獎金額，並計算乘倍前後的總得獎金額
         if (wp != null) {
             for (Map.Entry<String, Object> entry : wp.entrySet()) {
-                @SuppressWarnings("unchecked")
                 List<Integer> link = (List<Integer>) entry.getValue();
                 int linkCount = link.size();
                 int winSymbols = rl.get(link.get(0));
-                if (winSymbols == 0) {
-                    // 如果第一個位置是百搭，則找下一個非百搭圖標作為檢查圖標
+                if (winSymbols == 0 || winSymbols == 1) {
+                    // 如果第一個位置是百搭或scatter，則找下一個一般圖標作為檢查圖標
                     for (int k = 1; k < link.size(); k++) {
-                        if (rl.get(link.get(k)) != 0) {
+                        if (rl.get(link.get(k)) != 0 && rl.get(link.get(k)) != 1) {
                             winSymbols = rl.get(link.get(k));
                             break;
                         }
@@ -323,87 +433,73 @@ public class BikiniParadise {
         
         double aw = tw;     // 累計得獎金額
         
+        if (fs != null && ((Integer)fs.get("ts")).equals((Integer)fs.get("s"))) {
+            // 更新免費遊戲累計得獎金額
+            double previousAw = (Double)fs.get("aw");
+            fs.replace("aw", BigDecimalUtil.add(previousAw, tw));
+        }
+        
         int cwc = 0;        // 連續得獎回合數
         int pcwc = 0;       // 同cwc
-
-        Map<String, Object> fs = null;
-        int sc = 0;         // 免費遊戲圖標數目
-        if (rl.contains(1)) {
-            // 前一輪沒有免費遊戲，此輪沒有消除及炸彈，盤面有免費遊戲圖標，表示進入免費遊戲
-            fs = new LinkedHashMap<>();
-            int fsCount = 0;
-            for (int i = 0; i < rl.size(); i++) {
-                if (rl.get(i) == 1) {
-                    fsCount++;
-                }
-            }
-
-            sc = fsCount;
-            fsCount = freegameNumber[fsCount];  // 免費遊戲數量
-            fs.put("s", fsCount);           // 免費遊戲未執行回合量
-            fs.put("ts", fsCount);          // 免費遊戲總回合數
-            fs.put("aw", 0.0);              // 免費遊戲總得獎金額
-            fs.put("nosa", fsCount);        // 免費遊戲增加回合數
-            fs.put("wpbn", null);           // 免費遊戲中百搭圖標變動前位置
+        int st = 1;         // 前一回合的狀態，第一回合為1，前一輪是免費遊戲則為2
+        if (previousFs != null) {
+            // 前一輪也是免費遊戲
+            st = 2;
         }
-        LOGGER.log("fs: " + ((fs != null) ? fs.toString() : "null"));
-
-
-        int st = 1;     // 前一回合的狀態，第一回合為1
         int nst = 1;        // 本輪狀態，一般遊戲及免費遊戲最後一回合為1，進入免費遊戲當回合及免費遊戲中為2
+        if (fs != null && (Integer)fs.get("s") > 0) {
+            // 免費遊戲中
+            nst = 2;
+        }
 
         this.userMoney = BigDecimalUtil.multiply(bl, 100);
         LOGGER.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
                 + ", tw:" + tw + ", aw: " + aw + ", profit: " + np + ", end money: " + bl);
-        LOGGER.log("round:" + 1
-                            + ", rl: " + rl.toString()
-                            + ", lw: " + (lw != null ? lw.toString() : "null")
-                            + ", wp: " + (wp != null ? wp.toString() : "null")
-                            + ", fstc: " + (fstc != null ? fstc.toString() : "null"));
-        // wp = null; // 先將消除圖標位置清空，避免影響後續邏輯判斷
-        // lw = null; // 先將乘倍後每線消除得獎金額清空，避免影響後續邏輯判斷
+        LOGGER.log(" lw: " + (lw != null ? lw.toString() : "null")
+                + ", wp: " + (wp != null ? wp.toString() : "null")
+                + ", fstc: " + (fstc != null ? fstc.toString() : "null"));
 
         Map<String, Object> si = new LinkedHashMap<>();
-        si.put("wp", wp);                                       // 此輪得獎圖標位置
-        si.put("lw", lw);                                       // 乘倍後每線得獎金額
-        si.put("orl", null);                            // 免費遊戲時百搭未變動前盤面，一般遊戲皆為null
-        si.put("wm", wm);                                       // 總乘倍數
-        si.put("rwm", rwm);                                     // 中乘倍的column位置
-        si.put("wabm", wabm);                                   // 乘倍前總得獎金額
-        si.put("fs", fs);                                       // 免費遊戲相關參數
-        si.put("sc", sc);                                       // 免費遊戲圖標數目
-        si.put("wppr", wppr);                                 //  百搭的出現位置，免費遊戲中顯示為變動後的位置
+        si.put("wp", wp);                           // 此輪得獎圖標位置
+        si.put("lw", lw);                           // 乘倍後每線得獎金額
+        si.put("orl", orl);                         // 免費遊戲時百搭未變動前盤面，一般遊戲皆為null
+        si.put("wm", wm);                           // 總乘倍數
+        si.put("rwm", rwm);                         // 中乘倍的column位置
+        si.put("wabm", wabm);                       // 乘倍前總得獎金額
+        si.put("fs", fs);                           // 免費遊戲相關參數
+        si.put("sc", sc);                           // 免費遊戲圖標數目
+        si.put("wppr", wppr);                       //  百搭的出現位置，免費遊戲中顯示為變動後的位置
         si.put("gwt", -1);
         si.put("pmt", null);
         si.put("ab", null);
-        si.put("ml", gambleLv);                                 // 押注倍數
-        si.put("cs", cs);                                       // 每線押注金額
-        si.put("rl", rl);                                       // 最終盤面，免費遊戲時顯示百搭變動後盤面
-        si.put("ctw", ctw);                                     // 此回合得獎金額
-        si.put("cwc", cwc);                                     // 連續得獎次數，同pcwc
-        si.put("fstc", fstc);                                   // 免費遊戲時時2為已執行回合數，一般時皆為null
-        si.put("pcwc", pcwc);                                   // 連續得獎次數，同cwc
-        si.put("rwsp", rwsp);                                   // 各線得獎倍數
-        si.put("hashr", null);                                  // 用途不明，免費遊戲時會有值
+        si.put("ml", gambleLv);                     // 押注倍數
+        si.put("cs", cs);                           // 每線押注金額
+        si.put("rl", rl);                           // 最終盤面，免費遊戲時顯示百搭變動後盤面
+        si.put("ctw", ctw);                         // 此回合得獎金額
+        si.put("cwc", cwc);                         // 連續得獎次數，同pcwc
+        si.put("fstc", fstc);                       // 免費遊戲時時2為已執行回合數，一般時皆為null
+        si.put("pcwc", pcwc);                       // 連續得獎次數，同cwc
+        si.put("rwsp", rwsp);                       // 各線得獎倍數
+        si.put("hashr", null);                      // 用途不明，免費遊戲時會有值
         si.put("fb", null);
-        si.put("sid", spinSid);                                 // 此輪局號
-        si.put("psid", psid);                                   // 連消及免費遊戲時的總局號(及第一輪局號)
-        si.put("st", st);                                       // 前一回合狀態，第一回合為1
-        si.put("nst", nst);                                     // 本輪狀態，一般遊戲及免費遊戲最後一回合為1，進入免費遊戲當回合及免費遊戲中為2
+        si.put("sid", spinSid);                     // 此輪局號
+        si.put("psid", psid);                       // 連消及免費遊戲時的總局號(及第一輪局號)
+        si.put("st", st);                           // 前一回合狀態，第一回合為1
+        si.put("nst", nst);                         // 本輪狀態，一般遊戲及免費遊戲最後一回合為1，進入免費遊戲當回合及免費遊戲中為2
         si.put("pf", 1);
-        si.put("aw", aw);
+        si.put("aw", aw);                           // 累計得獎金額
         si.put("wid", 0);
         si.put("wt", "C");
         si.put("wk", "0_C");
         si.put("wbn", null);
         si.put("wfg", null);
-        si.put("blb", blb);                                     // 押注前玩家餘額
-        si.put("blab", blab);                                   // 押注後玩家餘額
-        si.put("bl", bl);                                       // 得獎後玩家餘額
-        si.put("tb", tb);                                       // 此輪押注金額(僅第一輪有)
-        si.put("tbb", tbb);                                     // 總押注金額
-        si.put("tw", tw);                                       // 總得獎金額
-        si.put("np", np);                                       // 扣除押注金額後的贏分
+        si.put("blb", blb);                         // 押注前玩家餘額
+        si.put("blab", blab);                       // 押注後玩家餘額
+        si.put("bl", bl);                           // 得獎後玩家餘額
+        si.put("tb", tb);                           // 此輪押注金額(僅第一輪有)
+        si.put("tbb", tbb);                         // 總押注金額
+        si.put("tw", tw);                           // 總得獎金額
+        si.put("np", np);                           // 扣除押注金額後的贏分
         si.put("ocr", null);
         si.put("mr", null);
         si.put("ge", Arrays.asList(1, 11));
@@ -436,18 +532,18 @@ public class BikiniParadise {
                 int[] link = linkList[j];
                 if (link[0] == i) {
                     int newCheckSym = checkSym;
-                    if (checkSym == 0) {
-                        // 如果第一個位置是百搭，則找下一個非百搭圖標作為檢查圖標
+                    if (checkSym == 0 || checkSym == 1) {
+                        // 如果第一個位置是百搭或scatter，則找下一個一般圖標作為檢查圖標
                         for (int k = 1; k < link.length; k++) {
-                            if (rl.get(link[k]) != 0) {
+                            if (rl.get(link[k]) != 0 && rl.get(link[k]) != 1) {
                                 newCheckSym = rl.get(link[k]);
                                 break;
                             }
                         }
                     }
 
-                    if (newCheckSym == 0) {
-                        // 全部都是百搭，跳過不算
+                    if (newCheckSym == 0 || newCheckSym == 1) {
+                        // 全部都是百搭或scatter，跳過不算
                         continue;
                     }
 

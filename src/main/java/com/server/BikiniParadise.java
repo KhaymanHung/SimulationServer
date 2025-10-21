@@ -181,21 +181,34 @@ public class BikiniParadise {
             rl.add((int)Math.floor((Math.random() * 10) + 3)); // 產生3~12之間的圖標
         }
 
-        // for (int i = 0; i < 2; i++) {
-        //     // 百搭、免費遊戲各有1%機率出現，如果隨機到的位置是其它特殊圖標，則不放
-        //     // 測試暫不出現免費遊戲圖標
-        //     if (i == 1) {
-        //         continue;
-        //     }
+        for (int i = 0; i < 2; i++) {
+            // 百搭、免費遊戲各有0.1%機率出現，如果隨機到的位置是其它特殊圖標，則不放
+            // 測試暫時提高機率為2%
+            if (i == 1) {
+                // 測試暫不出現免費遊戲圖標
+                continue;
+            }
 
-        //     // 測試暫時提高機率為10%
-        //     if ((int)Math.floor(Math.random() * 100) < 10) {
-        //         int wildPos = (int)Math.floor(Math.random() * 9); // 隨機產生0~8之間的位置
-        //         if (rl.get(wildPos) != 0 && rl.get(wildPos) != 1) {
-        //             rl.set(wildPos, i);
-        //         }
-        //     }
-        // }
+            for (int j = 0; j < 5; j++) {
+                // 每column最多只能有一個百搭或免費遊戲圖標，每column的出現機率階相等
+                int randomNum = (int)Math.floor(Math.random() * 100);
+                if (randomNum < 10) {
+                    if (i == 0) {
+                        int wildPos = (int)Math.floor(Math.random() * 7) - 3; // 隨機產生-3~3之間的位置
+                        int startPos = wildPos < 0 ? 0 : wildPos;
+                        int endPos = wildPos + 3 > 3 ? 3 : wildPos + 3;
+                        LOGGER.log("[debug] column: " + j + ", wildPos: " + wildPos + ", startPos: " + startPos + ", endPos: " + endPos);
+                        for (int k = startPos; k <= endPos; k++) {
+                            int pos = j * 4 + k;
+                            if (rl.get(pos) != 0 && rl.get(pos) != 1) {
+                                rl.set(pos, 0);
+                            }
+                        }
+                    } else {
+                    }
+                }
+            }
+        }
 
         LOGGER.log("First round, rl: " + rl.toString());
 
@@ -232,7 +245,7 @@ public class BikiniParadise {
         for (int i = 0; i < 5; i++) {
             wppr.add(new ArrayList<>());
         }
-        for (int i = 0; i < rl.size(); i += 4) {
+        for (int i = 0; i < rl.size(); i ++) {
             if (rl.get(i) == 0) {
                 wppr.get((int)(i / 4)).add(i % 4);
             }

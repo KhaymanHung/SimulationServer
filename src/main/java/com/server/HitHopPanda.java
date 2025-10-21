@@ -1,7 +1,6 @@
 package com.server;
 
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.http.ResponseEntity;
@@ -13,18 +12,15 @@ import java.util.*;
 import java.io.BufferedReader;
 // import java.sql.SQLException;
 
-import org.apache.commons.logging.Log;
-
 import jakarta.servlet.http.HttpServletRequest;
 
 import com.utli.BigDecimalUtil;
 import com.utli.Logger;
-// import com.utli.MysqlHelper;
 
 @CrossOrigin(origins = "*")
 @RestController
 @SuppressWarnings("unchecked")
-public class APISlotHitHopPanda {
+public class HitHopPanda {
     double userMoney = 0;
     long sid = 1;
     private static final Logger LOGGER = new Logger();
@@ -34,11 +30,6 @@ public class APISlotHitHopPanda {
         6, 7, 8, 9, // 7-10 一般圖標
         10,11,12    // 11-12 一般圖標
     };
-    
-    @GetMapping("/hello")
-    public String hello() {
-        return "Hello World";
-    }
 
     @CrossOrigin(origins = "*")
     @org.springframework.web.bind.annotation.PostMapping(
@@ -68,16 +59,16 @@ public class APISlotHitHopPanda {
         innerData.put("userid", 100004864);
         innerData.put("NickName", "2948739");
         innerData.put("gold", this.userMoney);
-        innerData.put("betScores", Arrays.asList(10, 50, 100, 200, 300, 500, 1000, 2000, 3000, 4000));
+        innerData.put("betScores", Arrays.asList(1,10,40,200));
         innerData.put("lJackPotScores", new ArrayList<>());
         innerData.put("GlodMultiple", 100);
         innerData.put("wicon", "");
         data.put("data", innerData);
         data.put("gameid", 8866020);
         data.put("levelid", 88660200);
-        data.put("BetLv", 1);
+        data.put("Lv", Arrays.asList(1,2,3,4,5,6,7,8,9,10));
         data.put("Currency", "BRL");
-        data.put("totalLineCount", 20);
+        data.put("totalLineCount", 30);
         data.put("minBetScore", 10);
         
         // 將原本這行
@@ -391,10 +382,11 @@ public class APISlotHitHopPanda {
             }
             psid = previousPsid;
         }
-        // double cs = (gambleValue / 100);                    // 每線押注金額
-        double cs = BigDecimalUtil.divide(gambleValue, 100, 8); // 精度可依需求調整
-        // double tb = (gambleValue * lineCountValue / 100);   // 此輪押注金額(僅第一輪有)
-        double tb = BigDecimalUtil.divide(BigDecimalUtil.multiply(gambleValue, lineCountValue), 100, 8);
+        
+        double cs = BigDecimalUtil.divide(gambleValue, 100, 2); // 每線押注金額
+        double gamble = BigDecimalUtil.multiply(gambleValue, gambleLv);
+        gamble = BigDecimalUtil.multiply(gamble, lineCountValue);
+        double tb = BigDecimalUtil.divide(gamble, 100, 2);      // 此輪押注金額(僅第一輪有)
         double tbb = tb;
         if (index > 0) {
             tb = 0;
@@ -829,7 +821,7 @@ public class APISlotHitHopPanda {
             }
         }
 
-        int nst;    // 本輪狀態，未得獎為1，得獎或有炸彈為4，免費遊戲未得獎第一回合為21，得獎或有炸彈為22
+        int nst;    // 本輪狀態，未得獎為1，得獎或有炸彈為4，免費遊戲未得獎或第一回合為21，得獎或有炸彈為22
         if ((lw != null && !lw.isEmpty()) || (rs != null && rs.get("bf") != null)) {
             if (fs != null) {
                 nst = 22;   // 免費遊戲得獎或有炸彈

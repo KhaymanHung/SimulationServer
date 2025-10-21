@@ -1,7 +1,5 @@
 com\server\GameMain.class
-com\server\APISlotHitHopPanda$1.class
 com\utli\BigDecimalUtil.class
-com\server\APISlotHitHopPanda.class
 com\server\GameMain$1.class
 com\utli\MysqlHelper.class
 com\utli\Logger.class

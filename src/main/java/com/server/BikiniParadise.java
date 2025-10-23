@@ -213,7 +213,7 @@ public class BikiniParadise {
 
         // 前一輪參數資料
         Map<String, Object> previousDt;             // 前一輪dt
-        Map<String, Object> previousSi;             // 前一輪si
+        Map<String, Object> previousSi = null;      // 前一輪si
         Map<String, Object> previousFs = null;      // 前一輪fs
         
         if (index != 0) {
@@ -328,7 +328,7 @@ public class BikiniParadise {
                     for (int j = i * 4; j < (i + 1) * 4; j++) {
                         rl.set(j, 0);
                     }
-                    wppr.set(i, Arrays.asList(0,0,0,0)); // 該column的百搭位置設為全滿
+                    wppr.set(i, Arrays.asList(0,1,2,3)); // 該column的百搭位置設為全滿
                 }
             }
         }
@@ -343,6 +343,9 @@ public class BikiniParadise {
         gamble = BigDecimalUtil.multiply(gamble, lineCountValue);
         double tb = BigDecimalUtil.divide(gamble, 100, 2);  // 此輪押注金額，免費遊戲僅第一輪有
         double tbb = tb;
+        if (previousFs != null) {
+            tb = 0;
+        }
 
         Map<String, Object> wp = null;  // 此輪中獎圖標位置
 
@@ -367,6 +370,24 @@ public class BikiniParadise {
         int wmCount = 0;
         for (int i = 0; i < wppr.size(); i++) {
             if (wppr.get(i).size() == 4) {
+                // 先判斷有沒有該百搭有沒有在得獎線上
+                if (i > 2) {
+                    // 只有第4個及第5個column有可能不在得獎線上
+                    if (wp != null) {
+                        boolean inWinLine = false;
+                        for (Map.Entry<String, Object> entry : wp.entrySet()) {
+                            List<Integer> link = (List<Integer>) entry.getValue();
+                            if (link.size() > i) {
+                                inWinLine = true;
+                                break;
+                            }
+                        }
+                        if (inWinLine == false) {
+                            continue;
+                        }
+                    }
+                }
+                
                 if (rwm == null) {
                     rwm = new ArrayList<>();
                 }
@@ -423,6 +444,10 @@ public class BikiniParadise {
         }
                 
         Map<String, Object> fstc = null;        // 免費遊戲中會有"2"，值為免費遊戲回合數
+        if (fs != null && (int)fs.get("ts") != (int)fs.get("s")) {
+            fstc = new LinkedHashMap<>();
+            fstc.put("2", (Integer)fs.get("ts") - (Integer)fs.get("s"));
+        }
 
                  
         double tw = ctw;                  // 此輪總得獎金額
@@ -432,15 +457,29 @@ public class BikiniParadise {
         double bl = BigDecimalUtil.add(blb, np);                        // 得獎後餘額
         
         double aw = tw;     // 累計得獎金額
+        if (previousSi != null) {
+            double previousAw = (Double)previousSi.get("aw");
+            aw = BigDecimalUtil.add(previousAw, tw);
+        }
         
-        if (fs != null && ((Integer)fs.get("ts")).equals((Integer)fs.get("s"))) {
+        if (fs != null && !((Integer)fs.get("ts")).equals((Integer)fs.get("s"))) {
             // 更新免費遊戲累計得獎金額
             double previousAw = (Double)fs.get("aw");
             fs.replace("aw", BigDecimalUtil.add(previousAw, tw));
         }
         
         int cwc = 0;        // 連續得獎回合數
-        int pcwc = 0;       // 同cwc
+        if (wp != null) {
+            cwc = 1;
+            if (previousSi != null) {
+                Map<String, Object> previousWp = (Map<String, Object>)previousSi.get("wp");
+                if (previousWp != null) {
+                    int previousCwc = (Integer)previousSi.get("cwc");
+                    cwc = previousCwc + 1;
+                }
+            }
+        }
+        int pcwc = 0;       // 一直為0
         int st = 1;         // 前一回合的狀態，第一回合為1，前一輪是免費遊戲則為2
         if (previousFs != null) {
             // 前一輪也是免費遊戲
@@ -451,6 +490,22 @@ public class BikiniParadise {
             // 免費遊戲中
             nst = 2;
         }
+
+        // 如果有免費遊戲且還有回合數(包括進入免費遊戲當回合)，第一個值為2
+        // 如果沒有免費遊戲，則看有沒有得到乘倍，若有則為3，沒有則為1，如果有免費遊戲，則此值放到第二個位置
+        // 第三個值固定為11
+        List<Integer> ge = new ArrayList<>();
+        if (fs != null) {
+            if ((Integer)fs.get("s") > 0) {
+                ge.add(2);
+            }
+        }
+        if (rwm != null && !rwm.isEmpty()) {
+            ge.add(3);
+        } else {
+            ge.add(1);
+        }
+        ge.add(11);
 
         this.userMoney = BigDecimalUtil.multiply(bl, 100);
         LOGGER.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
@@ -502,7 +557,7 @@ public class BikiniParadise {
         si.put("np", np);                           // 扣除押注金額後的贏分
         si.put("ocr", null);
         si.put("mr", null);
-        si.put("ge", Arrays.asList(1, 11));
+        si.put("ge", ge);
         dt.put("si", si);
         gambleItem.put("dt", dt);
         gambleItem.put("err", null);

@@ -66,7 +66,7 @@ public class HitHopPanda {
         data.put("data", innerData);
         data.put("gameid", 8866020);
         data.put("levelid", 88660200);
-        data.put("Lv", Arrays.asList(1,2,3,4,5,6,7,8,9,10));
+        data.put("BetLv", Arrays.asList(1,2,3,4,5,6,7,8,9,10));
         data.put("Currency", "BRL");
         data.put("totalLineCount", 30);
         data.put("minBetScore", 10);

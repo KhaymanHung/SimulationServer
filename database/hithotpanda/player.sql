@@ -2,8 +2,7 @@
 
 CREATE TABLE `player` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT 'index',
-  `playerId` varchar(45) COLLATE utf8mb4_bin NOT NULL COMMENT '玩家id，同lobby.account.playerId',
-  `agentId` varchar(45) COLLATE utf8mb4_bin DEFAULT '' COMMENT '代理商id，同lobby.account.agentId',
+  `playerId` varchar(45) COLLATE utf8mb4_bin NOT NULL COMMENT '玩家id，同lobby.account.id',
   `totalBet` float DEFAULT '0' COMMENT '總押注',
   `totalWin` float DEFAULT '0' COMMENT '總贏分',
   `profit` float DEFAULT '0' COMMENT '總利潤',

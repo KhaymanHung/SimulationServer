@@ -15,7 +15,8 @@ import java.io.BufferedReader;
 import jakarta.servlet.http.HttpServletRequest;
 
 import com.utli.BigDecimalUtil;
-import com.utli.Logger;
+import com.utli.Utli;
+// import com.utli.MysqlHelper;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -23,7 +24,16 @@ import com.utli.Logger;
 public class BikiniParadise {
     double userMoney = 0;
     long sid = 1;
-    private static final Logger LOGGER = new Logger();
+    private static final Utli UTLI = new Utli();
+    // private static MysqlHelper db = null;
+    // static {
+    //     try {
+    //         db = new MysqlHelper("192.168.1.177", 3306, "hithotpanda", "root", "rootpassword");
+    //         UTLI.log("BikiniParadise DB 初始化成功");
+    //     } catch (java.sql.SQLException | RuntimeException e) {
+    //         System.err.println("DB 初始化失敗: " + e.getMessage());
+    //     }
+    // }
     private final int[][] linkList = new int[][] {
         {0,4,8,12,16}, {1,5,9,13,17}, {2,6,10,14,18}, {3,7,11,15,19}, {0,5,8,13,16},
         {1,6,9,14,17}, {2,7,10,15,18}, {1,4,9,12,17}, {2,5,10,13,18}, {3,6,11,14,19},
@@ -40,7 +50,7 @@ public class BikiniParadise {
     
     @CrossOrigin(origins = "*")
     @org.springframework.web.bind.annotation.PostMapping(
-        value = "/api/BikiniParadise/EnterGame",
+        value = "/api/SLOTBikiniParadise/EnterGame",
         produces = "application/json"
     )
     @ResponseBody
@@ -52,11 +62,11 @@ public class BikiniParadise {
                 sb.append(line);
             }
         } catch (Exception e) {
-            // ignore
+            System.err.println("讀取 request 失敗: " + e.getMessage());
         }
         String request = sb.toString();
-        LOGGER.log("==================================== enter game start ====================================");
-        LOGGER.log("enterGame, request: " + request);
+        UTLI.log("==================================== enter game start ====================================");
+        UTLI.log("enterGame, request: " + request);
         String token = "MTAwMDA0ODY0fDE3NTkzODgxNTZ8MHw4ODY2MDIwfDEwMTAwMDMz";
         this.userMoney = 500000.00;
         Map<String, Object> data = new LinkedHashMap<>();
@@ -102,19 +112,19 @@ public class BikiniParadise {
         result.put("msg", "Success");
         result.put("data", data);
 
-        LOGGER.log("====================================  enter game end  ====================================");
+        UTLI.log("====================================  enter game end  ====================================");
 
         return ResponseEntity.ok(result);
     }
 
     @org.springframework.web.bind.annotation.PostMapping(
-        value = "/api/BikiniParadise/Gamble",
+        value = "/api/SLOTBikiniParadise/Gamble",
         produces = "application/json"
     )
     @ResponseBody
     public ResponseEntity<Map<String, String>> gamble(@org.springframework.web.bind.annotation.RequestBody(required = false) String request) {
-        LOGGER.log("==================================== spine start ====================================");
-        LOGGER.log("Gamble, request:" + request);
+        UTLI.log("==================================== spine start ====================================");
+        UTLI.log("Gamble, request:" + request);
         double gambleValue = 10;
         int gambleLv = 1;
         double lineCountValue = 20;
@@ -135,7 +145,7 @@ public class BikiniParadise {
                     lineCountValue = Double.parseDouble(lineCountObj.toString());
                 }
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-                LOGGER.log("Parse request error (JsonProcessingException): " + e.getMessage());
+                UTLI.log("Parse request error (JsonProcessingException): " + e.getMessage());
             }
         }
         // double gamble = (gambleValue * lineCountValue);
@@ -162,12 +172,12 @@ public class BikiniParadise {
                         Map<String, Object> fs = (Map<String, Object>)si.get("fs");
                         if (fs != null && (Integer)fs.get("s") > 0) {
                             roundEnd = false;
-                            LOGGER.log("roundEnd:" + roundEnd + ", fs: " + fs.toString());
+                            UTLI.log("roundEnd:" + roundEnd + ", fs: " + fs.toString());
                         } else {
                             if (fs == null) {
-                                LOGGER.log("roundEnd:" + roundEnd + ", fs is null");
+                                UTLI.log("roundEnd:" + roundEnd + ", fs is null");
                             } else {
-                                LOGGER.log("roundEnd:" + roundEnd + ", free game ended");
+                                UTLI.log("roundEnd:" + roundEnd + ", free game ended");
                             }
                         }
 
@@ -178,7 +188,7 @@ public class BikiniParadise {
         } while (!roundEnd);
 
         // this.userMoney = BigDecimalUtil.subtract(this.userMoney, gamble);
-        // LOGGER.log("userMoney after gamble: " + this.userMoney + ", gamble: " + gamble + ", gambleValue: " + gambleValue + ", lineCountValue: " + lineCountValue);
+        // UTLI.log("userMoney after gamble: " + this.userMoney + ", gamble: " + gamble + ", gambleValue: " + gambleValue + ", lineCountValue: " + lineCountValue);
         
         // 回傳結果
         Map<String, String> result = new LinkedHashMap<>();
@@ -193,18 +203,18 @@ public class BikiniParadise {
         result.put("msg", "success");
         result.put("status", "true");
 
-        LOGGER.log("====================================  spine end  ====================================");
+        UTLI.log("====================================  spine end  ====================================");
 
         return ResponseEntity.ok(result);
     }
 
     private Map<String, Object> createSpinResult(int index, Map<String, Object> previousResult, double gambleValue, int gambleLv, double lineCountValue) {
         if (index < 0 || (index > 0 && previousResult == null)) {
-            LOGGER.log("index:" + index + ", previousResult:" + previousResult);
+            UTLI.log("index:" + index + ", previousResult:" + previousResult);
             return null;
         }
         if (gambleValue < 1 || gambleLv < 1 || lineCountValue < 1) {
-            LOGGER.log("gambleValue:" + gambleValue + ", gambleLv:" + gambleLv + ", lineCountValue:" + lineCountValue);
+            UTLI.log("gambleValue:" + gambleValue + ", gambleLv:" + gambleLv + ", lineCountValue:" + lineCountValue);
             return null;
         }
 
@@ -249,7 +259,7 @@ public class BikiniParadise {
                         int endPos = wildPos + 3 > 3 ? 3 : wildPos + 3;
                         // int startPos = 0;
                         // int endPos = 3;
-                        LOGGER.log("[debug] column: " + j + ", wildPos: " + wildPos + ", startPos: " + startPos + ", endPos: " + endPos);
+                        UTLI.log("[debug] column: " + j + ", wildPos: " + wildPos + ", startPos: " + startPos + ", endPos: " + endPos);
                         for (int k = startPos; k <= endPos; k++) {
                             int pos = j * 4 + k;
                             if (rl.get(pos) != 0 && rl.get(pos) != 1) {
@@ -264,7 +274,7 @@ public class BikiniParadise {
                         if (pos >= rl.size() || rl.get(pos) == 0) {
                             continue;
                         }
-                        LOGGER.log("[debug] column: " + j + ", scatter pos: " + pos);
+                        UTLI.log("[debug] column: " + j + ", scatter pos: " + pos);
                         rl.set(pos, 1);
                     }
                 }
@@ -333,7 +343,7 @@ public class BikiniParadise {
             }
         }
 
-        LOGGER.log("round " + index + ", rl: " + rl.toString() + ", sc: " + sc + ", wppr: " + wppr.toString()
+        UTLI.log("round " + index + ", rl: " + rl.toString() + ", sc: " + sc + ", wppr: " + wppr.toString()
                     + ", orl: " + orl + ", fs: " + ((fs != null) ? fs.toString() : "null"));
 
         String spinSid = this.getSid();
@@ -356,7 +366,7 @@ public class BikiniParadise {
                 wp.put(entry.getKey(), entry.getValue());
             }
         }
-        // LOGGER.log("[debug] checkWinList, index: " + index + ", rl: " + rl.toString() + ", ws: " + ((ws != null) ? ws.toString() : "null") + ", wp: " + ((wp != null) ? wp.toString() : "null"));
+        // UTLI.log("[debug] checkWinList, index: " + index + ", rl: " + rl.toString() + ", ws: " + ((ws != null) ? ws.toString() : "null") + ", wp: " + ((wp != null) ? wp.toString() : "null"));
         
         Map<String, Object> gambleItem = new LinkedHashMap<>();
         Map<String, Object> dt = new LinkedHashMap<>();
@@ -508,9 +518,9 @@ public class BikiniParadise {
         ge.add(11);
 
         this.userMoney = BigDecimalUtil.multiply(bl, 100);
-        LOGGER.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
+        UTLI.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
                 + ", tw:" + tw + ", aw: " + aw + ", profit: " + np + ", end money: " + bl);
-        LOGGER.log(" lw: " + (lw != null ? lw.toString() : "null")
+        UTLI.log(" lw: " + (lw != null ? lw.toString() : "null")
                 + ", wp: " + (wp != null ? wp.toString() : "null")
                 + ", fstc: " + (fstc != null ? fstc.toString() : "null"));
 
@@ -523,7 +533,7 @@ public class BikiniParadise {
         si.put("wabm", wabm);                       // 乘倍前總得獎金額
         si.put("fs", fs);                           // 免費遊戲相關參數
         si.put("sc", sc);                           // 免費遊戲圖標數目
-        si.put("wppr", wppr);                       //  百搭的出現位置，免費遊戲中顯示為變動後的位置
+        si.put("wppr", wppr);                       // 百搭的出現位置，免費遊戲中顯示為變動後的位置
         si.put("gwt", -1);
         si.put("pmt", null);
         si.put("ab", null);
@@ -643,7 +653,7 @@ public class BikiniParadise {
     //         // 切換資料庫
     //         db.changeDatabase("otherdb");
     //     } catch (SQLException e) {
-    //         LOGGER.log("Database error: " + e.getMessage());
+    //         new Utli().log("Database error: " + e.getMessage());
     //     }
     // }
 }

@@ -10,11 +10,11 @@ import java.util.*;
  * 注意：專案部署時請加上 MySQL JDBC driver（例如 mysql-connector-java）於 classpath 或 pom.xml 依賴。
  */
 public class MysqlHelper implements AutoCloseable {
-    private String host;
-    private int port;
+    private final String host;
+    private final int port;
     private String db;
-    private String user;
-    private String password;
+    private final String user;
+    private final String password;
     private Connection conn;
 
     public MysqlHelper(String host, int port, String db, String user, String password) throws SQLException {
@@ -28,6 +28,11 @@ public class MysqlHelper implements AutoCloseable {
 
     private Connection createConnection() throws SQLException {
         String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true", host, port, db);
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException ignored) {
+            // JDBC 4+ 應自動載入，但若 classpath 無驅動會於下行丟出 SQLException
+        }
         return DriverManager.getConnection(url, user, password);
     }
 

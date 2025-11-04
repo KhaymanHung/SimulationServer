@@ -2,8 +2,7 @@
 
 CREATE TABLE `records_coin` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT 'index',
-  `accountId` varchar(45) COLLATE utf8mb4_bin NOT NULL COMMENT '帳號id',
-  `agentId` varchar(45) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '代理商id',
+  `playerId` varchar(45) COLLATE utf8mb4_bin NOT NULL COMMENT '對應lobby.account.id',
   `deposit` float DEFAULT '0' COMMENT '儲值金額',
   `withdrawal` float DEFAULT '0' COMMENT '提取金額',
   `createTime` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '創建時間',

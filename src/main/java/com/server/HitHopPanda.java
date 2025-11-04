@@ -15,7 +15,8 @@ import java.io.BufferedReader;
 import jakarta.servlet.http.HttpServletRequest;
 
 import com.utli.BigDecimalUtil;
-import com.utli.Logger;
+import com.utli.Utli;
+// import com.utli.MysqlHelper;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -23,13 +24,23 @@ import com.utli.Logger;
 public class HitHopPanda {
     double userMoney = 0;
     long sid = 1;
-    private static final Logger LOGGER = new Logger();
     private final int[] multiple = new int[] {
         0, 0, 0,    // 0 百搭，1 免費遊戲，2 炸彈
         2, 3, 4, 5, // 3-6 一般圖標
         6, 7, 8, 9, // 7-10 一般圖標
         10,11,12    // 11-12 一般圖標
     };
+
+    private static final Utli UTLI = new Utli();
+    // private static MysqlHelper db = null;
+    // static {
+    //     try {
+    //         db = new MysqlHelper("192.168.1.177", 3306, "hithotpanda", "root", "rootpassword");
+    //         UTLI.log("HitHopPanda DB 初始化成功");
+    //     } catch (java.sql.SQLException | RuntimeException e) {
+    //         System.err.println("DB 初始化失敗: " + e.getMessage());
+    //     }
+    // }
 
     @CrossOrigin(origins = "*")
     @org.springframework.web.bind.annotation.PostMapping(
@@ -45,11 +56,11 @@ public class HitHopPanda {
                 sb.append(line);
             }
         } catch (Exception e) {
-            // ignore
+            System.err.println("讀取 request 失敗: " + e.getMessage());
         }
         String request = sb.toString();
-        LOGGER.log("==================================== enter game start ====================================");
-        LOGGER.log("enterGame, request: " + request);
+        UTLI.log("==================================== enter game start ====================================");
+        UTLI.log("enterGame, request: " + request);
         String token = "MTAwMDA0ODY0fDE3NTkzODgxNTZ8MHw4ODY2MDIwfDEwMTAwMDMz";
         this.userMoney = 500000.00;
         Map<String, Object> data = new LinkedHashMap<>();
@@ -112,7 +123,7 @@ public class HitHopPanda {
         result.put("msg", "Success");
         result.put("data", data);
 
-        LOGGER.log("==================================== enter game end ====================================");
+        UTLI.log("==================================== enter game end ====================================");
 
         return ResponseEntity.ok(result);
     }
@@ -123,8 +134,8 @@ public class HitHopPanda {
     )
     @ResponseBody
     public ResponseEntity<Map<String, String>> gamble(@org.springframework.web.bind.annotation.RequestBody(required = false) String request) {
-        LOGGER.log("==================================== spine start ====================================");
-        LOGGER.log("Gamble, request:" + request);
+        UTLI.log("==================================== spine start ====================================");
+        UTLI.log("Gamble, request:" + request);
         double gambleValue = 10;
         int gambleLv = 1;
         double lineCountValue = 20;
@@ -145,7 +156,7 @@ public class HitHopPanda {
                     lineCountValue = Double.parseDouble(lineCountObj.toString());
                 }
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-                LOGGER.log("Parse request error (JsonProcessingException): " + e.getMessage());
+                UTLI.log("Parse request error (JsonProcessingException): " + e.getMessage());
             }
         }
         // double gamble = (gambleValue * lineCountValue);
@@ -174,7 +185,7 @@ public class HitHopPanda {
                             if (rs.get("ewp") != null || rs.get("bf") != null) {
                                 roundEnd = false;
                             }
-                            LOGGER.log("roundEnd:" + roundEnd
+                            UTLI.log("roundEnd:" + roundEnd
                                         + ", ewp: " + (rs.get("ewp") != null ? rs.get("ewp").toString() : "null")
                                         + ", bf: " + (rs.get("bf") != null ? rs.get("bf").toString() : "null")
                                         + ", fs: " + (si.get("fs") != null ? si.get("fs").toString() : "null"));
@@ -183,12 +194,12 @@ public class HitHopPanda {
                             Map<String, Object> fs = (Map<String, Object>)si.get("fs");
                             if (fs != null && (Integer)fs.get("s") > 0) {
                                 roundEnd = false;
-                                LOGGER.log("roundEnd:" + roundEnd + ", rs is null, fs: " + fs.toString());
+                                UTLI.log("roundEnd:" + roundEnd + ", rs is null, fs: " + fs.toString());
                             } else {
                                 if (fs == null) {
-                                    LOGGER.log("roundEnd:" + roundEnd + ", rs is null && fs is null");
+                                    UTLI.log("roundEnd:" + roundEnd + ", rs is null && fs is null");
                                 } else {
-                                    LOGGER.log("roundEnd:" + roundEnd + ", rs is null && free game ended");
+                                    UTLI.log("roundEnd:" + roundEnd + ", rs is null && free game ended");
                                 }
                             }
                         }
@@ -199,7 +210,7 @@ public class HitHopPanda {
         } while (!roundEnd);
 
         // this.userMoney = BigDecimalUtil.subtract(this.userMoney, gamble);
-        // LOGGER.log("userMoney after gamble: " + this.userMoney + ", gamble: " + gamble + ", gambleValue: " + gambleValue + ", lineCountValue: " + lineCountValue);
+        // UTLI.log("userMoney after gamble: " + this.userMoney + ", gamble: " + gamble + ", gambleValue: " + gambleValue + ", lineCountValue: " + lineCountValue);
 
         
         // 回傳結果
@@ -215,14 +226,14 @@ public class HitHopPanda {
         result.put("msg", "success");
         result.put("status", "true");
 
-        LOGGER.log("==================================== spine end ====================================");
+        UTLI.log("==================================== spine end ====================================");
 
         return ResponseEntity.ok(result);
     }
 
     private Map<String, Object> createSpinResult(int index, Map<String, Object> previousResult, double gambleValue, int gambleLv, double lineCountValue) {
         if (index < 0 || (index > 0 && previousResult == null)) {
-            LOGGER.log("index:" + index + ", previousResult:" + previousResult);
+            UTLI.log("index:" + index + ", previousResult:" + previousResult);
             return null;
         }
 
@@ -269,24 +280,24 @@ public class HitHopPanda {
                 sym.add(allSymList.get(symIndex));
                 allSymList.remove(symIndex); // 移除已選圖標，避免重複
             }
-            // LOGGER.log("First round, rl: " + rl.toString() + ", sym: " + sym.toString());
+            // UTLI.log("First round, rl: " + rl.toString() + ", sym: " + sym.toString());
         } else {
             // 非第一輪，帶入前一輪結果
             previousDt = (Map<String, Object>)previousResult.get("dt");
             if (previousDt == null) {
-                LOGGER.log("previousDt:" + previousDt);
+                UTLI.log("previousDt:" + previousDt);
                 return null;
             }
 
             previousSi = (Map<String, Object>)previousDt.get("si");
             if (previousSi == null) {
-                LOGGER.log("previousSi:" + previousSi);
+                UTLI.log("previousSi:" + previousSi);
                 return null;
             }
 
             previousRl = (List<Integer>)previousSi.get("rl");
             if (previousRl == null || previousRl.size() != 9) {
-                LOGGER.log("previousRl: " + previousRl + ", size: " + ((previousRl != null) ? previousRl.size() : "null"));
+                UTLI.log("previousRl: " + previousRl + ", size: " + ((previousRl != null) ? previousRl.size() : "null"));
                 return null;
             }
 
@@ -377,7 +388,7 @@ public class HitHopPanda {
                 previousPsid = (String)previousSi.get("psid");
             }
             if (previousPsid == null) {
-                LOGGER.log("previousPsid:" + previousPsid);
+                UTLI.log("previousPsid:" + previousPsid);
                 return null;
             }
             psid = previousPsid;
@@ -420,7 +431,7 @@ public class HitHopPanda {
                 }
             }
         }
-        // LOGGER.log("[debug] checkWinList, index: " + index + ", rl: " + rl.toString() + ", ws: " + ((ws != null) ? ws.toString() : "null") + ", wp: " + ((wp != null) ? wp.toString() : "null"));
+        // UTLI.log("[debug] checkWinList, index: " + index + ", rl: " + rl.toString() + ", ws: " + ((ws != null) ? ws.toString() : "null") + ", wp: " + ((wp != null) ? wp.toString() : "null"));
         
         Map<String, Object> gambleItem = new LinkedHashMap<>();
         Map<String, Object> dt = new LinkedHashMap<>();
@@ -810,7 +821,7 @@ public class HitHopPanda {
 
             fs = tempFs;
         }
-        LOGGER.log("fs: " + ((fs != null) ? fs.toString() : "null"));
+        UTLI.log("fs: " + ((fs != null) ? fs.toString() : "null"));
 
 
         int st = 1;      // 前一回合的狀態，第一回合為1
@@ -842,9 +853,9 @@ public class HitHopPanda {
         }
 
         this.userMoney = BigDecimalUtil.multiply(bl, 100);
-        LOGGER.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
+        UTLI.log("userMoney after gamble, start money:" + blb + ", gamble: " + tb
                 + ", tw:" + tw + ", ptw: " + ptw + ", aw: " + aw + ", profit: " + np + ", end money: " + bl);
-        LOGGER.log("round:" + (index + 1)
+        UTLI.log("round:" + (index + 1)
                             + ", rl: " + rl.toString() + ", ws: " + ws
                             + ", lw: " + (lw != null ? lw.toString() : "null")
                             + ", gaw: " + (gaw != null ? gaw.toString() : "null")
@@ -1001,7 +1012,7 @@ public class HitHopPanda {
     //         // 切換資料庫
     //         db.changeDatabase("otherdb");
     //     } catch (SQLException e) {
-    //         LOGGER.log("Database error: " + e.getMessage());
+    //         new Utli().log("Database error: " + e.getMessage());
     //     }
     // }
 }
